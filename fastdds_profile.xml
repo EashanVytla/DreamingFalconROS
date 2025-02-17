@@ -1,0 +1,5 @@
+<dds>
+    <data_writer>
+        <history_memoryPolicy>PREALLOCATED_WITH_REALLOC</history_memoryPolicy>
+    </data_writer>
+</dds>

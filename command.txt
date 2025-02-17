@@ -1,0 +1,24 @@
+Build:
+cd ..
+source /opt/ros/humble/setup.bash
+colcon build
+
+Source:
+source install/local_setup.bash
+
+px4 client:
+make px4_sitl gz_x500
+PX4_GZ_SIM_RENDER_ENGINE=ogre make px4_sitl gz_x500
+HEADLESS=1 make px4_sitl gz_x500
+
+starting agent:
+MicroXRCEAgent udp4 -p 8888
+
+Spinning up the roslaunch:
+ros2 launch px4_ros_com traj_test.launch.py
+
+Params to change:
+NAV_DLL_ACT 0
+
+Sim model:
+Tools/simulation/gz/models/x500_base/model.sdf
