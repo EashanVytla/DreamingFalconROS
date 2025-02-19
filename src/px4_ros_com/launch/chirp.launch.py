@@ -24,7 +24,7 @@ def generate_launch_description():
     )
 
     delay_timer2 = TimerAction(
-        period=6.0,
+        period=8.0,
         actions=[
             Node(
                 package='px4_ros_com',

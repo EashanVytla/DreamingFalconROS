@@ -1,3 +1,5 @@
+import torch
+
 class RK4_Solver:
     def step(self, x, f, dt, *args):
         """
@@ -11,6 +13,7 @@ class RK4_Solver:
         Returns:
             Next state after dt
         """
+        
         # RK4 steps
         k1 = f(x, *args)
         k2 = f(x + dt/2 * k1, *args)
@@ -19,3 +22,5 @@ class RK4_Solver:
         
         # Update state
         return x + (dt/6.0) * (k1 + 2*k2 + 2*k3 + k4)
+        # return x + dt * k2
+        # return x + dt * k1 

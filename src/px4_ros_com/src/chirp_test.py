@@ -29,8 +29,8 @@ class OffboardControl(Node):
 
         config = AttrDict.from_dict(config_dict)
 
-        self._mass = 2 #kg
-        self._g = 9.81
+        self._mass = config.physics.mass #kg
+        self._g = config.physics.g
 
         # State management
         self.current_state = DroneState.ARMING
@@ -39,10 +39,10 @@ class OffboardControl(Node):
         self.landing_height_threshold = -0.2  # Height at which landing is considered complete
 
         # Chirp configuration
-        self.chirp_x = 5 * scipy.signal.chirp(t=np.arange(0, 10000, 0.1), f0=0.5, t1=1000, f1=7, method="quadratic")
-        self.chirp_y = 5 * scipy.signal.chirp(t=np.arange(0, 10000, 0.1), f0=0.7, t1=1000, f1=9, method="quadratic")
+        self.chirp_x = 5 * scipy.signal.chirp(t=np.arange(0, 10000, 0.1), f0=0.1, t1=1000, f1=7, method="quadratic")
+        self.chirp_y = 5 * scipy.signal.chirp(t=np.arange(0, 10000, 0.1), f0=0.2, t1=1000, f1=9, method="quadratic")
         self.chirp_z = 5 * scipy.signal.chirp(t=np.arange(0, 10000, 0.1), f0=0.3, t1=1000, f1=10, method="quadratic") - 18
-        self.chirp_yaw = math.pi/2 * scipy.signal.chirp(t=np.arange(0, 10000, 0.1), f0=0.9, t1=1000, f1=6, method="quadratic")
+        self.chirp_yaw = math.pi/2 * scipy.signal.chirp(t=np.arange(0, 10000, 0.1), f0=0.4, t1=1000, f1=6, method="quadratic")
         self.chirp_counter = 0
         self.pbar = None  # Initialize progress bar variable
 

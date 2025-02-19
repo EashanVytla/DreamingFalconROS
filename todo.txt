@@ -1,0 +1,2 @@
+Next step is to use z score normalization instead of min-max normalization for states
+For force, we need to figure something out (or some better normalization method)

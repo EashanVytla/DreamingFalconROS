@@ -83,7 +83,9 @@ class Storage(Node):
 
         self.action = torch.tensor(act_msg.output[:4], dtype=torch.float32, device=self.device)
 
-        self.buffer.add(self.state, self.action, dt)
+        if self.buffer.get_len() <= self.config.replay_buffer.start_learning + 2:
+            print("adding")
+            self.buffer.add(self.state, self.action, dt)
         self.last_timestamp = current_timestamp
 
 class WorldModelLearning():
@@ -162,7 +164,7 @@ class WorldModelLearning():
         while(True):
             self.optimizer.zero_grad()
             if self.buffer.get_len() > self.config.replay_buffer.start_learning:
-                dts, states, actions = self.buffer.sample(self.config.training.batch_size, self.seq_scheduler.current_length)
+                dts, states, actions = self.buffer.sample(self.config.training.batch_size, 2)
                 pred_traj = self.model.rollout(dts, states[:,0,:], actions)
 
                 pred_traj_norm = torch.zeros((pred_traj.shape[0], pred_traj.shape[1], 6), dtype=torch.float32, device=self.device)
@@ -171,6 +173,7 @@ class WorldModelLearning():
                 loss = self.model.loss(pred_traj_norm[:,1:,:], torch.concat((states[:,1:,3:6], states[:,1:, 9:12]), dim=-1))
 
                 loss.backward()
+                torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
                 self.optimizer.step()
                 self.seq_scheduler.step(loss.item())
 
@@ -181,6 +184,8 @@ class WorldModelLearning():
                     x_dn[:, :, 6:9] = denormalize(states[:, :, 6:9], self.norm_ranges.euler_min, self.norm_ranges.euler_max)
                     x_dn[:, :, 9:12] = denormalize(states[:, :, 9:12], self.norm_ranges.omega_min, self.norm_ranges.omega_max)
                 
+                    print(f"Prediction: {torch.mean(pred_traj, dim=(0,1))}")
+                    print(f"Truth: {torch.mean(x_dn, dim=(0,1))}")
                     print(f"Error: {torch.mean(pred_traj - x_dn, dim=(0,1))}")
                 
                     grad_norm = self.compute_gradient_norm()
