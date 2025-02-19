@@ -12,7 +12,7 @@ def generate_launch_description():
     )
 
     delay_timer = TimerAction(
-        period=4.0,
+        period=6.0,
         actions=[
             Node(
                 package='px4_ros_com',
@@ -24,7 +24,7 @@ def generate_launch_description():
     )
 
     delay_timer2 = TimerAction(
-        period=8.0,
+        period=10.0,
         actions=[
             Node(
                 package='px4_ros_com',

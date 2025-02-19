@@ -10,7 +10,7 @@ from enum import Enum, auto
 import math
 from tqdm import tqdm
 import yaml
-from utils import AttrDict
+from utils import AttrDict, l2_dist
 from itertools import product
 
 class DroneState(Enum):
@@ -36,16 +36,19 @@ class OffboardControl(Node):
 
         # State management
         self.current_state = DroneState.ARMING
-        self.cache_state = DroneState.CHIRP_X
-        self.target_takeoff_height = -50.0  # Target height for takeoff
-        self.takeoff_height_threshold = -4.8  # Height at which takeoff is considered complete
+        self.cache_state = DroneState.CHIRP
+        self.target_takeoff_height = -10.0  # Target height for takeoff
+        self.takeoff_height_threshold = -9.8  # Height at which takeoff is considered complete
         self.landing_height_threshold = -0.2  # Height at which landing is considered complete
 
+        self.origin = np.array([0, 0, self.target_takeoff_height], dtype=np.float32)
+        self.prod_cnt = 0
+
         # Chirp configuration
-        self.chirp_x = scipy.signal.chirp(t=np.arange(0, 100, 0.1), f0=0.1, t1=1000, f1=2, method="quadratic")
-        self.chirp_y = scipy.signal.chirp(t=np.arange(0, 100, 0.1), f0=0.2, t1=1000, f1=3, method="quadratic")
-        self.chirp_z = scipy.signal.chirp(t=np.arange(0, 100, 0.1), f0=0.3, t1=1000, f1=4, method="quadratic") - 9.8
-        self.chirp_yaw = math.pi/2 * scipy.signal.chirp(t=np.arange(0, 10000, 0.1), f0=0.4, t1=1000, f1=3.5, method="quadratic")
+        self.chirp_x = scipy.signal.chirp(t=np.arange(0, 50, 0.1), f0=0.1, t1=50, f1=2, method="linear")
+        self.chirp_y = scipy.signal.chirp(t=np.arange(0, 50, 0.1), f0=0.2, t1=50, f1=3, method="linear")
+        self.chirp_z = scipy.signal.chirp(t=np.arange(0, 50, 0.1), f0=0.3, t1=50, f1=4, method="linear") - 9.8
+        self.chirp_yaw = math.pi/2 * scipy.signal.chirp(t=np.arange(0, 50, 0.1), f0=0.4, t1=50, f1=3.5, method="linear")
         self.steady_velo = 2
         self.chirp_counter = 0
         self.pbar = None  # Initialize progress bar variable
@@ -118,7 +121,7 @@ class OffboardControl(Node):
     def publish_offboard_control_heartbeat_signal(self):
         """Publish the offboard control mode."""
         msg = OffboardControlMode()
-        msg.position = False
+        msg.position = True
         msg.velocity = True
         msg.acceleration = True
         msg.attitude = False
@@ -213,15 +216,18 @@ class OffboardControl(Node):
             self.disarm()
             rclpy.shutdown()
 
+    def handle_reset_state(self):
+        pos = np.array([self.vehicle_local_position.x, self.vehicle_local_position.y, self.vehicle_local_position.z], dtype=np.float32)
+        if l2_dist(pos, self.origin) > 0.2:
+            self.publish_position_setpoint(self.origin[0], self.origin[1], self.origin[2], math.radians(90))
+        else:
+            self.current_state = self.cache_state
+
     def timer_callback(self) -> None:
         """Callback function for the timer."""
         self.publish_offboard_control_heartbeat_signal()
 
-        if (self.current_state == DroneState.CHIRP_X or \
-            self.current_state == DroneState.CHIRP_Y or \
-            self.current_state == DroneState.CHIRP_Z or \
-            self.current_state == DroneState.CHIRP_COUPLED) and \
-            self.vehicle_local_position.z < 1:
+        if self.current_state == DroneState.CHIRP and self.vehicle_local_position.z < 1:
                 self.cache_state = self.current_state
                 self.current_state = DroneState.RESET
 
@@ -232,6 +238,9 @@ class OffboardControl(Node):
             self.handle_takeoff_state()
         elif self.current_state == DroneState.CHIRP:
             if self.chirp_counter > 50: # 5 seconds
+                self.cache_state = self.current_state
+                self.current_state = DroneState.RESET
+                
                 chirp_counter = 0
                 self.prod_cnt += 1
                 num_combos = len(self.chirp_bool)
@@ -267,6 +276,8 @@ class OffboardControl(Node):
                                     vy = vy,
                                     vz = vz
                                     )
+        elif self.current_state == DroneState.RESET:
+            self.handle_reset_state()
         elif self.current_state == DroneState.LAND:
             self.handle_land_state()
 

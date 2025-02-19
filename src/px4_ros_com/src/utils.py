@@ -1,4 +1,5 @@
 import torch
+import numpy as np
 
 def quat_to_euler(q: torch.Tensor, device: str) -> torch.Tensor:
     """Convert quaternion to Euler angles (roll, pitch, yaw)
@@ -30,6 +31,9 @@ def quat_to_euler(q: torch.Tensor, device: str) -> torch.Tensor:
     yaw = torch.atan2(siny_cosp, cosy_cosp)
 
     return torch.stack([roll, pitch, yaw])
+
+def l2_dist(vec1, vec2):
+    return np.sqrt(np.sum(np.square(vec1), np.square(vec2)))
 
 def denormalize(val, min, max):
     return ((val + 1) / 2) * (max - min) + min
