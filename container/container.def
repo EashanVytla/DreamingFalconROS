@@ -119,16 +119,16 @@ From: ubuntu:22.04
 
     echo "Installing PX4 Python dependencies..."
     python3 -m pip install --upgrade pip setuptools wheel && \
-    python3 -m pip install --break-system-packages -r /requirements.txt
+    python3 -m pip install --break-system-packages -r /px4_requirements.txt
 
 %files
-    requirements.txt /requirements.txt
+    px4_requirements.txt /px4_requirements.txt
 
 %environment
     source /opt/ros/humble/setup.bash
     export PATH="/home/px4user/PX4-Autopilot:$PATH"
     export PX4_SIM_MODEL=iris
-    
+
     export PATH="/usr/local/bin:$PATH"
     export GZ_SIM_RESOURCE_PATH="/usr/share/gazebo-11"
     export SVGA_VGPU10=0

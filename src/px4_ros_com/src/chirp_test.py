@@ -15,10 +15,7 @@ from utils import AttrDict
 class DroneState(Enum):
     ARMING = auto()
     TAKEOFF = auto()
-    CHIRP_X = auto()
-    CHIRP_Y = auto()
-    CHIRP_Z = auto()
-    CHIRP_COUPLED = auto()
+    CHIRP = auto()
     RESET = auto()
     LAND = auto()
 
@@ -48,8 +45,10 @@ class OffboardControl(Node):
         self.chirp_y = scipy.signal.chirp(t=np.arange(0, 10000, 0.1), f0=0.2, t1=1000, f1=3, method="quadratic")
         self.chirp_z = scipy.signal.chirp(t=np.arange(0, 10000, 0.1), f0=0.3, t1=1000, f1=4, method="quadratic") - 9.8
         self.chirp_yaw = math.pi/2 * scipy.signal.chirp(t=np.arange(0, 10000, 0.1), f0=0.4, t1=1000, f1=3.5, method="quadratic")
+        self.steady_velo = 2
         self.chirp_counter = 0
         self.pbar = None  # Initialize progress bar variable
+        self.chirp_bool = [True, False, False]
 
         # Configure QoS profile for publishing and subscribing
         qos_profile = QoSProfile(
@@ -119,7 +118,7 @@ class OffboardControl(Node):
         """Publish the offboard control mode."""
         msg = OffboardControlMode()
         msg.position = False
-        msg.velocity = False
+        msg.velocity = True
         msg.acceleration = True
         msg.attitude = False
         msg.body_rate = False
@@ -135,9 +134,10 @@ class OffboardControl(Node):
         self.trajectory_setpoint_publisher.publish(msg)
         self.get_logger().info(f"Publishing position setpoints {[x, y, z]}", throttle_duration_sec=1)
 
-    def publish_rate_setpoint(self, x: float, y: float, z: float, yaw: float):
+    def publish_rate_setpoint(self, ax: float, ay: float, az: float, yaw: float, vx=0, vy=0, vz=0):
         msg = TrajectorySetpoint()
-        msg.acceleration = [x, y, z]
+        msg.velocity = [vx, vy, vz]
+        msg.acceleration = [ax, ay, az]
         msg.yaw = yaw
         msg.timestamp = int(self.get_clock().now().nanoseconds / 1000)
         self.trajectory_setpoint_publisher.publish(msg)
@@ -182,7 +182,7 @@ class OffboardControl(Node):
             self.get_logger().set_level(rclpy.logging.LoggingSeverity.ERROR)
             self.pbar = tqdm(total=len(self.chirp_x), desc="Chirp Progress")
 
-    def handle_chirp_state(self):
+    def handle_chirp_state(self, chirp_x: bool, chirp_y: bool, chirp_z: bool, vx: float, vy: float, vz: float, yaw: bool):
         """Handle the CHIRP state behavior"""
         if self.chirp_counter >= len(self.chirp_x):
             self.pbar.close()
@@ -191,10 +191,13 @@ class OffboardControl(Node):
             return
             
         self.publish_rate_setpoint(
-            self.chirp_x[self.chirp_counter],
-            self.chirp_y[self.chirp_counter],
-            self.chirp_z[self.chirp_counter],
-            self.chirp_yaw[self.chirp_counter]
+            ax=self.chirp_x[self.chirp_counter] if chirp_x else 0,
+            ay=self.chirp_y[self.chirp_counter] if chirp_y else 0,
+            az=self.chirp_z[self.chirp_counter] if chirp_z else 0,
+            vx = vx,
+            vy = vy,
+            vz = vz,
+            yaw=self.chirp_yaw[self.chirp_counter] if yaw else 0
         )
         self.chirp_counter += 1
         self.pbar.update(1)  # Update progress bar
@@ -226,14 +229,11 @@ class OffboardControl(Node):
             self.handle_arming_state()
         elif self.current_state == DroneState.TAKEOFF:
             self.handle_takeoff_state()
-        elif self.current_state == DroneState.CHIRP_X:
-            self.handle_chirp_state()
-        elif self.current_state == DroneState.CHIRP_Y:
-            pass
-        elif self.current_state == DroneState.CHIRP_Z:
-            pass
-        elif self.current_state == DroneState.CHIRP_COUPLED:
-            pass
+        elif self.current_state == DroneState.CHIRP:
+            if self.chirp_counter > 100:
+                chirp_counter = 0
+                
+            self.handle_chirp_state(chirp_x=self.chirp_bool[0], chirp_y=self.chirp_bool[1], chirp_z=self.chirp_bool[2])
         elif self.current_state == DroneState.LAND:
             self.handle_land_state()
 
