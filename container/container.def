@@ -55,7 +55,7 @@ From: ubuntu:22.04
     useradd --create-home --shell /bin/bash px4user
     echo "px4user ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
     su - px4user -c "
-        git clone --recursive https://github.com/PX4/PX4-Autopilot.git ~/PX4-Autopilot && \
+        git clone --recursive https://github.com/PX4/PX4-Autopilot.git ~/PX4-Autopilot
     "
 
     set -e

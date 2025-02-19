@@ -11,6 +11,7 @@ import math
 from tqdm import tqdm
 import yaml
 from utils import AttrDict
+from itertools import product
 
 class DroneState(Enum):
     ARMING = auto()
@@ -41,14 +42,14 @@ class OffboardControl(Node):
         self.landing_height_threshold = -0.2  # Height at which landing is considered complete
 
         # Chirp configuration
-        self.chirp_x = scipy.signal.chirp(t=np.arange(0, 10000, 0.1), f0=0.1, t1=1000, f1=2, method="quadratic")
-        self.chirp_y = scipy.signal.chirp(t=np.arange(0, 10000, 0.1), f0=0.2, t1=1000, f1=3, method="quadratic")
-        self.chirp_z = scipy.signal.chirp(t=np.arange(0, 10000, 0.1), f0=0.3, t1=1000, f1=4, method="quadratic") - 9.8
+        self.chirp_x = scipy.signal.chirp(t=np.arange(0, 100, 0.1), f0=0.1, t1=1000, f1=2, method="quadratic")
+        self.chirp_y = scipy.signal.chirp(t=np.arange(0, 100, 0.1), f0=0.2, t1=1000, f1=3, method="quadratic")
+        self.chirp_z = scipy.signal.chirp(t=np.arange(0, 100, 0.1), f0=0.3, t1=1000, f1=4, method="quadratic") - 9.8
         self.chirp_yaw = math.pi/2 * scipy.signal.chirp(t=np.arange(0, 10000, 0.1), f0=0.4, t1=1000, f1=3.5, method="quadratic")
         self.steady_velo = 2
         self.chirp_counter = 0
         self.pbar = None  # Initialize progress bar variable
-        self.chirp_bool = [True, False, False]
+        self.chirp_bool = [combo for combo in product([True, False], repeat=6) if combo != (False, False, False, False, False, False, False, False, False)]
 
         # Configure QoS profile for publishing and subscribing
         qos_profile = QoSProfile(
@@ -230,10 +231,42 @@ class OffboardControl(Node):
         elif self.current_state == DroneState.TAKEOFF:
             self.handle_takeoff_state()
         elif self.current_state == DroneState.CHIRP:
-            if self.chirp_counter > 100:
+            if self.chirp_counter > 50: # 5 seconds
                 chirp_counter = 0
+                self.prod_cnt += 1
+                num_combos = len(self.chirp_bool)
+                self.prod_cnt %= num_combos
+                if self.prod_cnt % 64:
+                    self.steady_velo += 2
                 
-            self.handle_chirp_state(chirp_x=self.chirp_bool[0], chirp_y=self.chirp_bool[1], chirp_z=self.chirp_bool[2])
+            if self.chirp_bool[self.prod_cnt][0]:
+                vx = self.steady_velo
+            elif self.chirp_bool[self.prod_cnt][3]:
+                vx = -self.steady_velo
+            else:
+                vx = 0
+
+            if self.chirp_bool[self.prod_cnt][1]:
+                vy = self.steady_velo
+            elif self.chirp_bool[self.prod_cnt][4]:
+                vy = -self.steady_velo
+            else:
+                vy = 0
+
+            if self.chirp_bool[self.prod_cnt][2]:
+                vz = self.steady_velo
+            elif self.chirp_bool[self.prod_cnt][5]:
+                vz = -self.steady_velo
+            else:
+                vz = 0
+
+            self.handle_chirp_state(chirp_x=self.chirp_bool[self.prod_cnt][6], 
+                                    chirp_y=self.chirp_bool[self.prod_cnt][7], 
+                                    chirp_z=self.chirp_bool[self.prod_cnt][8], 
+                                    vx = vx,
+                                    vy = vy,
+                                    vz = vz
+                                    )
         elif self.current_state == DroneState.LAND:
             self.handle_land_state()
 
