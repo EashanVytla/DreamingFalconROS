@@ -3,7 +3,7 @@ From: ubuntu:22.04
 
 %post
     export DEBIAN_FRONTEND=noninteractive
-    
+
     # Ensure locales are installed
     apt-get update && apt-get install -y locales
     locale-gen en_US en_US.UTF-8
@@ -56,14 +56,82 @@ From: ubuntu:22.04
     echo "px4user ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
     su - px4user -c "
         git clone --recursive https://github.com/PX4/PX4-Autopilot.git ~/PX4-Autopilot && \
-        cd ~/PX4-Autopilot && \
-        bash Tools/setup/ubuntu.sh
     "
+
+        set -e
+    
+    echo "Updating package list and installing base dependencies..."
+    apt-get update -y --quiet && \
+    DEBIAN_FRONTEND=noninteractive apt-get -y --quiet --no-install-recommends install \
+        astyle \
+        build-essential \
+        ccache \
+        cmake \
+        cppcheck \
+        file \
+        g++ \
+        gcc \
+        gdb \
+        git \
+        lcov \
+        libssl-dev \
+        libxml2-dev \
+        libxml2-utils \
+        make \
+        ninja-build \
+        python3 \
+        python3-dev \
+        python3-pip \
+        python3-setuptools \
+        python3-wheel \
+        rsync \
+        shellcheck \
+        unzip \
+        zip \
+        dmidecode \
+        bc \
+        libeigen3-dev \
+        libimage-exiftool-perl \
+        libopencv-dev \
+        libxml2-utils \
+        pkg-config \
+        protobuf-compiler \
+        gstreamer1.0-plugins-bad \
+        gstreamer1.0-plugins-base \
+        gstreamer1.0-plugins-good \
+        gstreamer1.0-plugins-ugly \
+        gstreamer1.0-libav \
+        && rm -rf /var/lib/apt/lists/*
+
+    echo "Installing Gazebo (Harmonic)..."
+    wget https://packages.osrfoundation.org/gazebo.gpg -O /usr/share/keyrings/pkgs-osrf-archive-keyring.gpg && \
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/pkgs-osrf-archive-keyring.gpg] http://packages.osrfoundation.org/gazebo/ubuntu-stable $(lsb_release -cs) main" | tee /etc/apt/sources.list.d/gazebo-stable.list > /dev/null && \
+    apt-get update -y --quiet && \
+    DEBIAN_FRONTEND=noninteractive apt-get -y --quiet --no-install-recommends install \
+        gz-harmonic \
+        libunwind-dev \
+        && rm -rf /var/lib/apt/lists/*
+
+    echo "Fixing potential VMWare graphics issues for Gazebo..."
+    if dmidecode -t system | grep -q "Manufacturer: VMware, Inc." ; then
+        echo "export SVGA_VGPU10=0" >> /etc/profile
+    fi
+
+    echo "Installing PX4 Python dependencies..."
+    python3 -m pip install --upgrade pip setuptools wheel && \
+    python3 -m pip install --break-system-packages -r /requirements.txt
+
+%files
+    requirements.txt /requirements.txt
 
 %environment
     source /opt/ros/humble/setup.bash
     export PATH="/home/px4user/PX4-Autopilot:$PATH"
     export PX4_SIM_MODEL=iris
+    
+    export PATH="/usr/local/bin:$PATH"
+    export GZ_SIM_RESOURCE_PATH="/usr/share/gazebo-11"
+    export SVGA_VGPU10=0
 
 %runscript
     exec "$@"

@@ -15,7 +15,11 @@ from utils import AttrDict
 class DroneState(Enum):
     ARMING = auto()
     TAKEOFF = auto()
-    CHIRP = auto()
+    CHIRP_X = auto()
+    CHIRP_Y = auto()
+    CHIRP_Z = auto()
+    CHIRP_COUPLED = auto()
+    RESET = auto()
     LAND = auto()
 
 class OffboardControl(Node):
@@ -34,15 +38,16 @@ class OffboardControl(Node):
 
         # State management
         self.current_state = DroneState.ARMING
+        self.cache_state = DroneState.CHIRP_X
         self.target_takeoff_height = -50.0  # Target height for takeoff
         self.takeoff_height_threshold = -4.8  # Height at which takeoff is considered complete
         self.landing_height_threshold = -0.2  # Height at which landing is considered complete
 
         # Chirp configuration
-        self.chirp_x = 5 * scipy.signal.chirp(t=np.arange(0, 10000, 0.1), f0=0.1, t1=1000, f1=7, method="quadratic")
-        self.chirp_y = 5 * scipy.signal.chirp(t=np.arange(0, 10000, 0.1), f0=0.2, t1=1000, f1=9, method="quadratic")
-        self.chirp_z = 5 * scipy.signal.chirp(t=np.arange(0, 10000, 0.1), f0=0.3, t1=1000, f1=10, method="quadratic") - 18
-        self.chirp_yaw = math.pi/2 * scipy.signal.chirp(t=np.arange(0, 10000, 0.1), f0=0.4, t1=1000, f1=6, method="quadratic")
+        self.chirp_x = scipy.signal.chirp(t=np.arange(0, 10000, 0.1), f0=0.1, t1=1000, f1=2, method="quadratic")
+        self.chirp_y = scipy.signal.chirp(t=np.arange(0, 10000, 0.1), f0=0.2, t1=1000, f1=3, method="quadratic")
+        self.chirp_z = scipy.signal.chirp(t=np.arange(0, 10000, 0.1), f0=0.3, t1=1000, f1=4, method="quadratic") - 9.8
+        self.chirp_yaw = math.pi/2 * scipy.signal.chirp(t=np.arange(0, 10000, 0.1), f0=0.4, t1=1000, f1=3.5, method="quadratic")
         self.chirp_counter = 0
         self.pbar = None  # Initialize progress bar variable
 
@@ -208,13 +213,27 @@ class OffboardControl(Node):
         """Callback function for the timer."""
         self.publish_offboard_control_heartbeat_signal()
 
+        if (self.current_state == DroneState.CHIRP_X or \
+            self.current_state == DroneState.CHIRP_Y or \
+            self.current_state == DroneState.CHIRP_Z or \
+            self.current_state == DroneState.CHIRP_COUPLED) and \
+            self.vehicle_local_position.z < 1:
+                self.cache_state = self.current_state
+                self.current_state = DroneState.RESET
+
         # State machine handling
         if self.current_state == DroneState.ARMING:
             self.handle_arming_state()
         elif self.current_state == DroneState.TAKEOFF:
             self.handle_takeoff_state()
-        elif self.current_state == DroneState.CHIRP:
+        elif self.current_state == DroneState.CHIRP_X:
             self.handle_chirp_state()
+        elif self.current_state == DroneState.CHIRP_Y:
+            pass
+        elif self.current_state == DroneState.CHIRP_Z:
+            pass
+        elif self.current_state == DroneState.CHIRP_COUPLED:
+            pass
         elif self.current_state == DroneState.LAND:
             self.handle_land_state()
 
