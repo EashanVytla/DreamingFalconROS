@@ -41,7 +41,7 @@ class OffboardControl(Node):
         self.takeoff_height_threshold = -9.8  # Height at which takeoff is considered complete
         self.landing_height_threshold = -0.2  # Height at which landing is considered complete
 
-        self.origin = np.array([0, 0, self.target_takeoff_height], dtype=np.float32)
+        self.origin = np.array([0.0, 0.0, self.target_takeoff_height], dtype=np.float32)
         self.prod_cnt = 0
 
         # Chirp configuration
@@ -49,10 +49,10 @@ class OffboardControl(Node):
         self.chirp_y = scipy.signal.chirp(t=np.arange(0, 50, 0.1), f0=0.2, t1=50, f1=3, method="linear")
         self.chirp_z = scipy.signal.chirp(t=np.arange(0, 50, 0.1), f0=0.3, t1=50, f1=4, method="linear") - 9.8
         self.chirp_yaw = math.pi/2 * scipy.signal.chirp(t=np.arange(0, 50, 0.1), f0=0.4, t1=50, f1=3.5, method="linear")
-        self.steady_velo = 2
+        self.steady_velo = 2.0
         self.chirp_counter = 0
         self.pbar = None  # Initialize progress bar variable
-        self.chirp_bool = [combo for combo in product([True, False], repeat=6) if combo != (False, False, False, False, False, False, False, False, False)]
+        self.chirp_bool = [combo for combo in product([True, False], repeat=9) if combo != (False,)*9]
 
         # Configure QoS profile for publishing and subscribing
         qos_profile = QoSProfile(
@@ -193,11 +193,11 @@ class OffboardControl(Node):
             self.get_logger().set_level(rclpy.logging.LoggingSeverity.INFO)
             self.current_state = DroneState.LAND
             return
-            
+
         self.publish_rate_setpoint(
-            ax=self.chirp_x[self.chirp_counter] if chirp_x else 0,
-            ay=self.chirp_y[self.chirp_counter] if chirp_y else 0,
-            az=self.chirp_z[self.chirp_counter] if chirp_z else 0,
+            ax=self.chirp_x[self.chirp_counter] if chirp_x else 0.0,
+            ay=self.chirp_y[self.chirp_counter] if chirp_y else 0.0,
+            az=self.chirp_z[self.chirp_counter] if chirp_z else 0.0,
             vx = vx,
             vy = vy,
             vz = vz,
@@ -218,8 +218,12 @@ class OffboardControl(Node):
 
     def handle_reset_state(self):
         pos = np.array([self.vehicle_local_position.x, self.vehicle_local_position.y, self.vehicle_local_position.z], dtype=np.float32)
-        if l2_dist(pos, self.origin) > 0.2:
-            self.publish_position_setpoint(self.origin[0], self.origin[1], self.origin[2], math.radians(90))
+        
+        dist = l2_dist(pos, self.origin)
+
+        if dist > 0.75:
+            print(f"Dist: {dist}")
+            self.publish_position_setpoint(self.origin[0].item(), self.origin[1].item(), self.origin[2].item(), math.radians(90))
         else:
             self.current_state = self.cache_state
 
@@ -227,9 +231,10 @@ class OffboardControl(Node):
         """Callback function for the timer."""
         self.publish_offboard_control_heartbeat_signal()
 
-        if self.current_state == DroneState.CHIRP and self.vehicle_local_position.z < 1:
-                self.cache_state = self.current_state
-                self.current_state = DroneState.RESET
+        if self.current_state == DroneState.CHIRP and abs(self.vehicle_local_position.z) < 1.0:
+            print("Too close to ground. Resetting.")
+            self.cache_state = DroneState.CHIRP
+            self.current_state = DroneState.RESET
 
         # State machine handling
         if self.current_state == DroneState.ARMING:
@@ -238,15 +243,16 @@ class OffboardControl(Node):
             self.handle_takeoff_state()
         elif self.current_state == DroneState.CHIRP:
             if self.chirp_counter > 50: # 5 seconds
-                self.cache_state = self.current_state
+                print("Resetting")
+                self.cache_state = DroneState.CHIRP
                 self.current_state = DroneState.RESET
                 
-                chirp_counter = 0
+                self.chirp_counter = 0
                 self.prod_cnt += 1
                 num_combos = len(self.chirp_bool)
                 self.prod_cnt %= num_combos
-                if self.prod_cnt % 64:
-                    self.steady_velo += 2
+                if self.prod_cnt % 64 == 0 and self.prod_cnt != 0:
+                    self.steady_velo += 2.0
                 
             if self.chirp_bool[self.prod_cnt][0]:
                 vx = self.steady_velo
@@ -274,7 +280,8 @@ class OffboardControl(Node):
                                     chirp_z=self.chirp_bool[self.prod_cnt][8], 
                                     vx = vx,
                                     vy = vy,
-                                    vz = vz
+                                    vz = vz,
+                                    yaw=math.radians(90)
                                     )
         elif self.current_state == DroneState.RESET:
             self.handle_reset_state()

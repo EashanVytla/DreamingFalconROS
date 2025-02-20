@@ -83,9 +83,9 @@ class Storage(Node):
 
         self.action = torch.tensor(act_msg.output[:4], dtype=torch.float32, device=self.device)
 
-        if self.buffer.get_len() <= self.config.replay_buffer.start_learning + 2:
+        # if self.buffer.get_len() <= self.config.replay_buffer.start_learning + 2:
             # print("adding")
-            self.buffer.add(self.state, self.action, dt)
+        self.buffer.add(self.state, self.action, dt)
         self.last_timestamp = current_timestamp
 
 class WorldModelLearning():

@@ -11,20 +11,15 @@ def generate_launch_description():
         output='screen'
     )
 
-    delay_timer = TimerAction(
-        period=6.0,
-        actions=[
-            Node(
-                package='px4_ros_com',
-                executable='chirp_test.py',
-                output='screen',
-                emulate_tty=True
-            ),
-        ]
+    chirp_node = Node(
+        package='px4_ros_com',
+        executable='chirp_test.py',
+        output='screen',
+        emulate_tty=True
     )
 
     delay_timer2 = TimerAction(
-        period=10.0,
+        period=5.0,
         actions=[
             Node(
                 package='px4_ros_com',
@@ -36,7 +31,7 @@ def generate_launch_description():
     )
 
     return LaunchDescription([
-        micro_ros_agent,
-        delay_timer,
+        # micro_ros_agent,
+        chirp_node,
         delay_timer2
     ])

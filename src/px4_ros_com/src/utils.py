@@ -33,7 +33,7 @@ def quat_to_euler(q: torch.Tensor, device: str) -> torch.Tensor:
     return torch.stack([roll, pitch, yaw])
 
 def l2_dist(vec1, vec2):
-    return np.sqrt(np.sum(np.square(vec1), np.square(vec2)))
+    return np.sqrt(np.sum((vec1 - vec2) ** 2))
 
 def denormalize(val, min, max):
     return ((val + 1) / 2) * (max - min) + min

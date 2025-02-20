@@ -2,6 +2,10 @@ Bootstrap: docker
 From: ubuntu:22.04
 
 %post
+    mkdir -p /var/lib/apt/lists/partial
+    chmod -R 777 /var/lib/apt/lists/partial
+    apt-get update -y
+    
     export DEBIAN_FRONTEND=noninteractive
     
     # Ensure locales are installed
