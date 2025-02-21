@@ -222,7 +222,6 @@ class OffboardControl(Node):
         dist = l2_dist(pos, self.origin)
 
         if dist > 0.75:
-            print(f"Dist: {dist}")
             self.publish_position_setpoint(self.origin[0].item(), self.origin[1].item(), self.origin[2].item(), math.radians(90))
         else:
             self.current_state = self.cache_state

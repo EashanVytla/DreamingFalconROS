@@ -17,10 +17,10 @@ physics:
 normalization:
   velo_min: -10
   velo_max: 10
-  euler_min: -3.14159265359
-  euler_max: 3.14159265359
-  omega_min: -3.14159265359
-  omega_max: 3.14159265359
+  euler_min: -1.0
+  euler_max: 1.0
+  omega_min: -1.0
+  omega_max: 1.0
   act_min: 150
   act_max: 1000
   fxy_min: -2.5
@@ -47,7 +47,7 @@ force_model:
 training: 
   num_epochs: 64
   batch_size: 64
-  lr: 0.00003
+  lr: 0.0003
   min_lr: 0.0075
   init_seq_len: 2
   max_seq_len: 2

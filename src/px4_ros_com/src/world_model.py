@@ -183,11 +183,11 @@ class WorldModel(nn.Module):
         inp = torch.cat((actuator_input, x_t[:, 3:12]), dim=1)
         forces_norm = self.model(inp)
 
-        x_t_dn = torch.zeros_like(x_t)
-        x_t_dn[:, 0:3] = x_t[:, 0:3]
-        x_t_dn[:, 3:6] = utils.denormalize(x_t[:, 3:6], self.norm_config.velo_min, self.norm_config.velo_max)
-        x_t_dn[:, 6:9] = utils.denormalize(x_t[:, 6:9], self.norm_config.euler_min, self.norm_config.euler_max)
-        x_t_dn[:, 9:12] = utils.denormalize(x_t[:, 9:12], self.norm_config.omega_min, self.norm_config.omega_max)
+        # x_t_dn = torch.zeros_like(x_t)
+        # x_t_dn[:, 0:3] = x_t[:, 0:3]
+        # x_t_dn[:, 3:6] = utils.denormalize(x_t[:, 3:6], self.norm_config.velo_min, self.norm_config.velo_max)
+        # x_t_dn[:, 6:9] = utils.denormalize(x_t[:, 6:9], self.norm_config.euler_min, self.norm_config.euler_max)
+        # x_t_dn[:, 9:12] = utils.denormalize(x_t[:, 9:12], self.norm_config.omega_min, self.norm_config.omega_max)
 
         forces = torch.zeros_like(forces_norm)
         forces[:, 0:2] = utils.denormalize(forces_norm[:, 0:2], self.norm_config.fxy_min, self.norm_config.fxy_max)
@@ -197,7 +197,7 @@ class WorldModel(nn.Module):
 
         # print(f"Forces: {torch.mean(forces, dim=0)}")
 
-        return self.six_dof(x_t_dn, dt, forces)
+        return self.six_dof(x_t, dt, forces)
     
     def loss(self, pred, truth):
         huber_loss = F.smooth_l1_loss(pred, truth, reduction='none', beta=self._beta)

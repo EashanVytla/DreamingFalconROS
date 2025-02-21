@@ -14,6 +14,7 @@ from world_model import WorldModel
 from sequence_scheduler import AdaptiveSeqLengthScheduler
 from message_filters import Subscriber, ApproximateTimeSynchronizer
 import os
+from scipy.spatial.transform import Rotation as R
 import time
 
 class Storage(Node):
@@ -29,7 +30,16 @@ class Storage(Node):
         self.state_dim = self.config.force_model.state_dim
         self.action_dim = self.config.force_model.action_dim
         self.device = self.config.device
-        self.state = torch.zeros((self.state_dim), dtype=torch.float32, device=self.device)
+
+        '''
+        State:
+            1) Position (NED) 0-3
+            2) Velocity (body) 12-15
+            5) Attitude (Euler) 6-9
+            6) Angular Velocity (body) 9-12
+        '''
+
+        self.state = torch.zeros((12), dtype=torch.float32, device=self.device)
         self.action = torch.zeros((self.action_dim), dtype=torch.float32, device=self.device)
 
         qos_profile = QoSProfile(
@@ -68,24 +78,30 @@ class Storage(Node):
         current_timestamp = odo_msg.timestamp
         dt = 0.0
         if self.last_timestamp is not None:
-            dt = (current_timestamp - self.last_timestamp) / 1e6  # Convert microseconds to seconds
+            dt = (current_timestamp - self.last_timestamp) / 1e6
             if (dt < self.config.physics.refresh_rate - (0.05 * self.config.physics.refresh_rate)):
                 return
 
-        self.state[6:9] = quat_to_euler(torch.tensor(odo_msg.q, dtype=torch.float32, device=self.device), device=self.device)
         self.state[0:3] = torch.tensor(odo_msg.position, dtype=torch.float32, device=self.device)
+        # self.state[3:6] = torch.matmul(
+        #     get_DCM(self.state[6], self.state[7], self.state[8]).T, 
+        #     torch.from_numpy(odo_msg.velocity).to(dtype=torch.float32, device=self.device)
+        # )
+
         self.state[3:6] = torch.matmul(
-            get_DCM(self.state[6], self.state[7], self.state[8]), 
-            torch.from_numpy(odo_msg.velocity).to(dtype=torch.float32, device=self.device)
+            torch.tensor(R.from_quat(odo_msg.q, scalar_first=True).as_matrix().T, dtype=torch.float32, device=self.device),
+            torch.tensor(odo_msg.velocity, dtype=torch.float32, device=self.device)
         )
+
+        self.state[6:9] = quat_to_euler(odo_msg.q, device=self.device)
 
         self.state[9:12] = torch.tensor(odo_msg.angular_velocity, dtype=torch.float32, device=self.device)
 
         self.action = torch.tensor(act_msg.output[:4], dtype=torch.float32, device=self.device)
 
-        if self.buffer.get_len() <= self.config.replay_buffer.start_learning + 2:
-            # print("adding")
-            self.buffer.add(self.state, self.action, dt)
+        # if self.buffer.get_len() <= self.config.replay_buffer.start_learning + 2:
+        #     # print("adding")
+        self.buffer.add(self.state, self.action, dt)
         self.last_timestamp = current_timestamp
 
 class WorldModelLearning():
@@ -167,26 +183,35 @@ class WorldModelLearning():
                 dts, states, actions = self.buffer.sample(self.config.training.batch_size, 2)
                 pred_traj = self.model.rollout(dts, states[:,0,:], actions)
 
-                pred_traj_norm = torch.zeros((pred_traj.shape[0], pred_traj.shape[1], 6), dtype=torch.float32, device=self.device)
-                pred_traj_norm[:, :, 0:3] = normalize(pred_traj[:, :, 3:6], self.norm_ranges.velo_min, self.norm_ranges.velo_max)
-                pred_traj_norm[:, :, 3:6] = normalize(pred_traj[:, :, 9:12], self.norm_ranges.omega_min, self.norm_ranges.omega_max)
-                loss = self.model.loss(pred_traj_norm[:,1:,:], torch.concat((states[:,1:,3:6], states[:,1:, 9:12]), dim=-1))
+                # pred_traj_norm = torch.zeros((pred_traj.shape[0], pred_traj.shape[1], 6), dtype=torch.float32, device=self.device)
+                # pred_traj_norm[:, :, 0:3] = normalize(pred_traj[:, :, 3:6], self.norm_ranges.velo_min, self.norm_ranges.velo_max)
+                # pred_traj_norm[:, :, 3:6] = normalize(pred_traj[:, :, 9:12], self.norm_ranges.omega_min, self.norm_ranges.omega_max)
+                loss = self.model.loss(
+                    torch.concat((pred_traj[:,1:,3:6], pred_traj[:,1:,9:12]), dim=-1), 
+                    torch.concat((states[:,1:,3:6], states[:,1:, 9:12]), dim=-1)
+                )
 
                 loss.backward()
-                torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
+                torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=50.0)
                 self.optimizer.step()
                 self.seq_scheduler.step(loss.item())
 
                 if batch_count % 25 == 0:
-                    x_dn = torch.zeros_like(states)
-                    x_dn[:, :, 0:3] = states[:, :, 0:3]
-                    x_dn[:, :, 3:6] = denormalize(states[:, :, 3:6], self.norm_ranges.velo_min, self.norm_ranges.velo_max)
-                    x_dn[:, :, 6:9] = denormalize(states[:, :, 6:9], self.norm_ranges.euler_min, self.norm_ranges.euler_max)
-                    x_dn[:, :, 9:12] = denormalize(states[:, :, 9:12], self.norm_ranges.omega_min, self.norm_ranges.omega_max)
-                
-                    print(f"Prediction: {torch.mean(pred_traj, dim=(0,1))}")
-                    print(f"Truth: {torch.mean(x_dn, dim=(0,1))}")
-                    print(f"Error: {torch.mean(pred_traj - x_dn, dim=(0,1))}")
+                    # x_dn = torch.zeros_like(states)
+                    # x_dn[:, :, 0:3] = states[:, :, 0:3]
+                    # x_dn[:, :, 3:6] = denormalize(states[:, :, 3:6], self.norm_ranges.velo_min, self.norm_ranges.velo_max)
+                    # x_dn[:, :, 6:9] = denormalize(states[:, :, 6:9], self.norm_ranges.euler_min, self.norm_ranges.euler_max)
+                    # x_dn[:, :, 9:12] = denormalize(states[:, :, 9:12], self.norm_ranges.omega_min, self.norm_ranges.omega_max)
+
+                    print(f"Prediction(0): {pred_traj[0, -1, :]}")
+                    print(f"Prev Truth(0): {states[0, 0, :]}")
+                    print(f"Truth(0): {states[0, -1, :]}")
+                    print(f"Error(0): {pred_traj[0, -1, :] - states[0, -1, :]}")
+
+                    print(f"Prediction: {torch.mean(pred_traj[:, -1, :], dim=(0))}")
+                    print(f"Prev Truth: {torch.mean(states[:, 0, :], dim=(0))}")
+                    print(f"Truth: {torch.mean(states[:, -1, :], dim=(0))}")
+                    print(f"Error: {torch.mean(pred_traj[:, -1, :] - states[:, -1, :], dim=(0))}")
                 
                     grad_norm = self.compute_gradient_norm()
                     self.writer.add_scalar("Norms/gradient_norm", grad_norm, batch_count)

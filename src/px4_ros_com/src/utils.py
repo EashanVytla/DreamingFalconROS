@@ -1,36 +1,14 @@
 import torch
 import numpy as np
+from scipy.spatial.transform import Rotation as R
 
-def quat_to_euler(q: torch.Tensor, device: str) -> torch.Tensor:
-    """Convert quaternion to Euler angles (roll, pitch, yaw)
-    Args:
-        q: quaternion tensor [w, x, y, z]
-        device: torch device to use
-    Returns:
-        torch.Tensor: [roll, pitch, yaw]
-    """
-    # Extract quaternion components
-    w, x, y, z = q[0], q[1], q[2], q[3]
-
-    # Roll (x-axis rotation)
-    sinr_cosp = 2.0 * (w * x + y * z)
-    cosr_cosp = 1.0 - 2.0 * (x * x + y * y)
-    roll = torch.atan2(sinr_cosp, cosr_cosp)
-
-    # Pitch (y-axis rotation)
-    sinp = 2.0 * (w * y - z * x)
-    pitch = torch.where(
-        torch.abs(sinp) >= 1,
-        torch.sign(sinp) * torch.tensor(3.14159 / 2.0, device=device),
-        torch.asin(sinp)
-    )
-
-    # Yaw (z-axis rotation)
-    siny_cosp = 2.0 * (w * z + x * y)
-    cosy_cosp = 1.0 - 2.0 * (y * y + z * z)
-    yaw = torch.atan2(siny_cosp, cosy_cosp)
-
-    return torch.stack([roll, pitch, yaw])
+def quat_to_euler(q: np.array, device) -> torch.Tensor:
+    # Create rotation object and get euler angles
+    rot = R.from_quat(q, scalar_first=True)
+    euler = rot.as_euler('xyz', degrees=False)  # Get angles in radians
+    
+    # Convert back to torch tensor
+    return torch.tensor(euler, device=device, dtype=torch.float32)
 
 def l2_dist(vec1, vec2):
     return np.sqrt(np.sum((vec1 - vec2) ** 2))

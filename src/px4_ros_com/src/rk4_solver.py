@@ -22,5 +22,3 @@ class RK4_Solver:
         
         # Update state
         return x + (dt/6.0) * (k1 + 2*k2 + 2*k3 + k4)
-        # return x + dt * k2
-        # return x + dt * k1 
