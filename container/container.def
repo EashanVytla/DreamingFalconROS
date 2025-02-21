@@ -56,7 +56,7 @@ From: ubuntu:22.04
     echo "source /opt/ros/humble/setup.bash" >> ~/.bashrc
 
     # (Optional) Install PX4
-    git clone --recursive https://github.com/EashanVytla/PX4-Autopilot-Appt.git ~/PX4-Autopilot && \
+    git clone --recursive https://github.com/PX4/PX4-Autopilot.git ~/PX4-Autopilot && \
     cd ~/PX4-Autopilot && \
     bash Tools/setup/ubuntu.sh
 
