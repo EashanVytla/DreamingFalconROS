@@ -1,5 +1,5 @@
 Bootstrap: docker
-From: docker pull osrf/ros:humble-desktop-full-jammy
+From: osrf/ros:humble-desktop-full-jammy
 
 %post
     export DEBIAN_FRONTEND=noninteractive
