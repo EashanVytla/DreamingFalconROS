@@ -1,29 +1,8 @@
 Bootstrap: docker
-From: ubuntu:22.04
+From: docker pull osrf/ros:humble-desktop-full-jammy
 
 %post
-    mkdir -p /var/lib/apt/lists/partial
-    chmod -R 777 /var/lib/apt/lists/partial
-    apt-get update -y
-
     export DEBIAN_FRONTEND=noninteractive
-    
-    # Ensure locales are installed
-    apt-get update && apt-get install -y locales
-    locale-gen en_US en_US.UTF-8
-    update-locale LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8
-    export LANG=en_US.UTF-8
-
-    # Basic setup
-    apt-get install -y software-properties-common
-    add-apt-repository universe
-    apt-get update && apt-get install -y curl
-
-    # Add ROS 2 repository & key
-    curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key -o /usr/share/keyrings/ros-archive-keyring.gpg
-    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros2/ubuntu \
-    $(. /etc/os-release && echo $UBUNTU_CODENAME) main" \
-    > /etc/apt/sources.list.d/ros2.list
 
     # Upgrade and install ROS 2 + dependencies
     apt-get update && apt-get upgrade -y
@@ -42,12 +21,6 @@ From: ubuntu:22.04
         python3-colcon-common-extensions \
         python3-rosdep \
         python3-vcstool \
-        ros-humble-desktop \
-        ros-humble-ros-base \
-        ros-humble-gazebo-ros-pkgs \
-        ros-humble-xacro \
-        ros-humble-rqt \
-        ros-humble-rviz2 \
         libopencv-dev \
         libyaml-cpp-dev && \
         rm -rf /var/lib/apt/lists/*
@@ -56,7 +29,7 @@ From: ubuntu:22.04
     echo "source /opt/ros/humble/setup.bash" >> ~/.bashrc
 
     # (Optional) Install PX4
-    git clone --recursive https://github.com/PX4/PX4-Autopilot.git ~/PX4-Autopilot && \
+    git clone --recursive https://github.com/EashanVytla/PX4-Autopilot-Appt.git ~/PX4-Autopilot && \
     cd ~/PX4-Autopilot && \
     bash Tools/setup/ubuntu.sh
 
