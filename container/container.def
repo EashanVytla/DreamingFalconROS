@@ -28,14 +28,18 @@ From: osrf/ros:humble-desktop-full-jammy
     # Source ROS setup
     echo "source /opt/ros/humble/setup.bash" >> ~/.bashrc
 
-    # (Optional) Install PX4
-    git clone --recursive https://github.com/EashanVytla/PX4-Autopilot-Appt.git ~/PX4-Autopilot && \
-    cd ~/PX4-Autopilot && \
+    # Create workspace and clone PX4
+    mkdir -p /workspace && \
+    cd /workspace && \
+    git clone --recursive https://github.com/EashanVytla/PX4-Autopilot-Appt.git PX4-Autopilot && \
+    cd PX4-Autopilot && \
     bash Tools/setup/ubuntu.sh
 
 %environment
     source /opt/ros/humble/setup.bash
-    export PATH="/home/px4user/PX4-Autopilot:$PATH"
+    export PATH="/workspace/PX4-Autopilot:$PATH"
+    export WORKSPACE_DIR=/workspace
 
 %runscript
+    cd /workspace
     exec "$@"
