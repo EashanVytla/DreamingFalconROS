@@ -9,7 +9,7 @@ source install/local_setup.bash
 px4 client:
 make px4_sitl gz_x500
 PX4_GZ_SIM_RENDER_ENGINE=ogre make px4_sitl gz_x500
-HEADLESS=1 make px4_sitl gz_x500
+HEADLESS=1 PX4_GZ_SIM_RENDER_ENGINE=ogre make px4_sitl gz_x500
 
 starting agent:
 MicroXRCEAgent udp4 -p 8888
@@ -28,3 +28,8 @@ COM_LOW_BAT_ACT 0
 
 Sim model:
 Tools/simulation/gz/models/x500_base/model.sdf
+
+apptainer shell --fakeroot --writable-tmpfs dreamingfalcon.sif
+
+
+apptainer shell --fakeroot -B ~/workspace:/workspace dreamingfalcon.sif
