@@ -1,33 +1,36 @@
 Bootstrap: docker
-From: px4io/px4-dev-base-jammy
+From: px4io/px4-dev-base-jammy:2024-05-18
 
 %post
     export DEBIAN_FRONTEND=noninteractive
 
-    locale  # check for UTF-8
-
+    # Set up locales
+    locale
     apt update && apt install -y locales
     locale-gen en_US en_US.UTF-8
     update-locale LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8
     export LANG=en_US.UTF-8
+    locale
 
-    locale  # verify settings
-
+    # Install basic dependencies
     apt install -y software-properties-common
     add-apt-repository -y universe
 
+    # Set up ROS2 repository
     apt update && apt install curl -y
     curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key -o /usr/share/keyrings/ros-archive-keyring.gpg
-
     echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros2/ubuntu $(. /etc/os-release && echo $UBUNTU_CODENAME) main" | tee /etc/apt/sources.list.d/ros2.list > /dev/null
 
+    # Set up Gazebo repository
+    wget https://packages.osrfoundation.org/gazebo.gpg -O /usr/share/keyrings/pkgs-osrf-archive-keyring.gpg
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/pkgs-osrf-archive-keyring.gpg] http://packages.osrfoundation.org/gazebo/ubuntu-stable $(. /etc/os-release && echo $UBUNTU_CODENAME) main" | tee /etc/apt/sources.list.d/gazebo-stable.list > /dev/null
+
+    # Install ROS2 development tools
     apt update && apt install -y \
         python3-flake8-docstrings \
         python3-pip \
         python3-pytest-cov \
-        ros-dev-tools
-
-    apt install -y \
+        ros-dev-tools \
         python3-flake8-blind-except \
         python3-flake8-builtins \
         python3-flake8-class-newline \
@@ -38,13 +41,45 @@ From: px4io/px4-dev-base-jammy
         python3-pytest-repeat \
         python3-pytest-rerunfailures
 
-    apt upgrade -y
+    # Install Gazebo and related packages
+    apt install -y \
+        ant \
+        binutils \
+        bc \
+        dirmngr \
+        gz-garden \
+        gstreamer1.0-plugins-bad \
+        gstreamer1.0-plugins-base \
+        gstreamer1.0-plugins-good \
+        gstreamer1.0-plugins-ugly \
+        libeigen3-dev \
+        libgstreamer-plugins-base1.0-dev \
+        libimage-exiftool-perl \
+        libopencv-dev \
+        libxml2-utils \
+        mesa-utils \
+        protobuf-compiler \
+        x-window-system
+
+    # Install JSBSim
+    wget https://github.com/JSBSim-Team/jsbsim/releases/download/v1.1.1a/JSBSim-devel_1.1.1-134.focal.amd64.deb
+    dpkg -i JSBSim-devel_1.1.1-134.focal.amd64.deb
+
+    # Clean up
+    apt-get -y autoremove
+    apt-get clean autoclean
+    rm -rf /var/lib/apt/lists/{apt,dpkg,cache,log} /tmp/* /var/tmp/*
 
 %environment
+    # ROS2 environment
     source /opt/ros/humble/setup.bash
     export PATH="/workspace/PX4-Autopilot:$PATH"
     export WORKSPACE_DIR=/workspace
     export LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu:/.singularity.d/libs
+    
+    # QT and Java environment variables
+    export QT_X11_NO_MITSHM=1
+    export JAVA_TOOL_OPTIONS=-Dfile.encoding=UTF8
 
 %runscript
     cd /workspace
