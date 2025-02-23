@@ -68,7 +68,10 @@ From: px4io/px4-dev-base-jammy:2024-05-18
     # Clean up
     apt-get -y autoremove
     apt-get clean autoclean
-    rm -rf /var/lib/apt/lists/{apt,dpkg,cache,log} /tmp/* /var/tmp/*
+    # Only remove package-related files
+    rm -rf /var/lib/apt/lists/* 
+    # Remove the downloaded JSBSim deb file
+    rm -f JSBSim-devel_1.1.1-134.focal.amd64.deb
 
 %environment
     # ROS2 environment
