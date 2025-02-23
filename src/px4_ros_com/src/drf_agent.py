@@ -197,21 +197,19 @@ class WorldModelLearning():
                 self.seq_scheduler.step(loss.item())
 
                 if batch_count % 25 == 0:
+                    print("Validating...")
+                    _, val_states, val_actions = self.buffer.sample(1, 32)
+                    pred_traj_val = self.model.rollout(dts, states[:,0,:], actions)
+
                     # x_dn = torch.zeros_like(states)
                     # x_dn[:, :, 0:3] = states[:, :, 0:3]
                     # x_dn[:, :, 3:6] = denormalize(states[:, :, 3:6], self.norm_ranges.velo_min, self.norm_ranges.velo_max)
                     # x_dn[:, :, 6:9] = denormalize(states[:, :, 6:9], self.norm_ranges.euler_min, self.norm_ranges.euler_max)
                     # x_dn[:, :, 9:12] = denormalize(states[:, :, 9:12], self.norm_ranges.omega_min, self.norm_ranges.omega_max)
 
-                    print(f"Prediction(0): {pred_traj[0, -1, :]}")
-                    print(f"Prev Truth(0): {states[0, 0, :]}")
-                    print(f"Truth(0): {states[0, -1, :]}")
-                    print(f"Error(0): {pred_traj[0, -1, :] - states[0, -1, :]}")
-
-                    print(f"Prediction: {torch.mean(pred_traj[:, -1, :], dim=(0))}")
-                    print(f"Prev Truth: {torch.mean(states[:, 0, :], dim=(0))}")
-                    print(f"Truth: {torch.mean(states[:, -1, :], dim=(0))}")
-                    print(f"Error: {torch.mean(pred_traj[:, -1, :] - states[:, -1, :], dim=(0))}")
+                    print(f"Truth Mean: {torch.mean(val_states[:, 1:, :], dim=(0,1))}")
+                    print(f"Prediction Mean: {torch.mean(pred_traj_val[:, 1:, :], dim=(0,1))}")
+                    print(f"Error: {torch.mean(pred_traj_val[:, 1:, :] - val_states[:, 1:, :], dim=(0,1))}")
                 
                     grad_norm = self.compute_gradient_norm()
                     self.writer.add_scalar("Norms/gradient_norm", grad_norm, batch_count)

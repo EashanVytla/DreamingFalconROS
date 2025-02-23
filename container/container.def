@@ -4,6 +4,8 @@ From: osrf/ros:humble-desktop-full-jammy
 %post
     export DEBIAN_FRONTEND=noninteractive
 
+    apt-get update && apt-get install -y libqt5core5a
+
     # Upgrade and install ROS 2 + dependencies
     apt-get update && apt-get upgrade -y
     apt-get install -y \
@@ -35,10 +37,13 @@ From: osrf/ros:humble-desktop-full-jammy
     cd PX4-Autopilot && \
     bash Tools/setup/ubuntu.sh
 
+    pip3 install --user kconfiglib jsonschema pyros-genmsg future
+
 %environment
     source /opt/ros/humble/setup.bash
     export PATH="/workspace/PX4-Autopilot:$PATH"
     export WORKSPACE_DIR=/workspace
+    export LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu:/.singularity.d/libs
 
 %runscript
     cd /workspace

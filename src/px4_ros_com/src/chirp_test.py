@@ -208,6 +208,7 @@ class OffboardControl(Node):
 
     def handle_land_state(self):
         """Handle the LAND state behavior"""
+        print("LANDING!!!")
         if self.pbar is not None:  # Ensure progress bar is closed when landing
             self.pbar.close()
         self.land()
@@ -250,6 +251,7 @@ class OffboardControl(Node):
                 self.prod_cnt += 1
                 num_combos = len(self.chirp_bool)
                 self.prod_cnt %= num_combos
+
                 if self.prod_cnt % 64 == 0 and self.prod_cnt != 0:
                     self.steady_velo += 2.0
                 

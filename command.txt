@@ -19,6 +19,12 @@ ros2 launch px4_ros_com traj_test.launch.py
 
 Params to change:
 NAV_DLL_ACT 0
+UXRCE_DDS_SYNCC 0
+UXRCE_DDS_SYNCT 0
+
+    In gazebo:
+COM_LOW_BAT_ACT 0
+
 
 Sim model:
 Tools/simulation/gz/models/x500_base/model.sdf
