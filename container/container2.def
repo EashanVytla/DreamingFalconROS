@@ -80,7 +80,7 @@ From: px4io/px4-dev-base-jammy:2024-05-18
     source /opt/ros/humble/setup.bash
     export PATH="/workspace/PX4-Autopilot:$PATH"
     export WORKSPACE_DIR=/workspace
-    # export LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu
+    export LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu
 
     # Gazebo CMake path
     export CMAKE_PREFIX_PATH=/usr/lib/x86_64-linux-gnu/cmake/gz-transport12-all
