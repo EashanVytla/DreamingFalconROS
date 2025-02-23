@@ -16,8 +16,6 @@ From: px4io/px4-dev-base-jammy:2024-05-18
     apt install -y software-properties-common
     add-apt-repository -y universe
 
-    apt install -y libqt5core5a qtbase5-dev libqt5gui5 libqt5widgets5 libqt5opengl5
-
     # Set up ROS2 repository
     apt update && apt install curl -y
     curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key -o /usr/share/keyrings/ros-archive-keyring.gpg
@@ -42,6 +40,11 @@ From: px4io/px4-dev-base-jammy:2024-05-18
         python3-flake8-quotes \
         python3-pytest-repeat \
         python3-pytest-rerunfailures
+
+    apt update && apt install -y \
+        libgz-transport12-dev \
+        libqt5core5a qtbase5-dev libqt5gui5 libqt5widgets5 libqt5opengl5 \
+        software-properties-common \
 
     # Install Gazebo and related packages
     apt install -y \
@@ -80,7 +83,7 @@ From: px4io/px4-dev-base-jammy:2024-05-18
     source /opt/ros/humble/setup.bash
     export PATH="/workspace/PX4-Autopilot:$PATH"
     export WORKSPACE_DIR=/workspace
-    export LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu
+    # export LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu
 
     # Gazebo CMake path
     export CMAKE_PREFIX_PATH=/usr/lib/x86_64-linux-gnu/cmake/gz-transport12-all
