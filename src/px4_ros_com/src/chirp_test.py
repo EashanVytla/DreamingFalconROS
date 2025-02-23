@@ -12,6 +12,7 @@ from tqdm import tqdm
 import yaml
 from utils import AttrDict, l2_dist
 from itertools import product
+import time
 
 class DroneState(Enum):
     ARMING = auto()
@@ -293,8 +294,18 @@ import sys
 def main(args=None) -> None:
     print('Starting offboard control node...')
     rclpy.init(args=args)
+    start_time = time.time()
+    timeout = 1200
+
     offboard_control = OffboardControl()
-    rclpy.spin(offboard_control)
+
+    while rclpy.ok():
+        rclpy.spin_once(offboard_control)
+
+        if time.time() - start_time > timeout:
+            print("\nTimeout reached! Shutting down.")
+            break
+
     offboard_control.destroy_node()
     rclpy.shutdown()
 

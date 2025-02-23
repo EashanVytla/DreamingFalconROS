@@ -20,8 +20,10 @@ import time
 class Storage(Node):
     def __init__(self, buffer) -> None:
         super().__init__('storage_node')
+        self.declare_parameter('config_file', 'config.yaml')
+        self.config_file = self.get_parameter('config_file').value
 
-        with open('config.yaml', 'r') as file:
+        with open(self.config_file, 'r') as file:
             config_dict = yaml.safe_load(file)
 
         self.config = AttrDict.from_dict(config_dict)
@@ -241,6 +243,9 @@ def main(args=None) -> None:
     
     rclpy.init(args=args)
 
+    start_time = time.time()
+    timeout = 1200 # 20 minutes in seconds
+
     with open('config.yaml', 'r') as file:
         config_dict = yaml.safe_load(file)
 
@@ -252,11 +257,21 @@ def main(args=None) -> None:
     buffer = ReplayBuffer(config)
 
     storage_node = Storage(buffer)
-    train_process = mp.Process(target=wm_train_process_fn, args=[buffer])
+    config_file = storage_node.config_file
+
+    train_process = mp.Process(
+        target=wm_train_process_fn, 
+        args=[buffer, config_file]
+    )
     train_process.start()
     
     try:
-        rclpy.spin(storage_node)
+        while rclpy.ok():
+            rclpy.spin_once(storage_node)
+
+            if time.time() - start_time > timeout:
+                print("\nTimeout reached! Shutting down.")
+                break
     except KeyboardInterrupt:
         print("keyboard interrupt")
     finally:

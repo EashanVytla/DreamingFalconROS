@@ -29,7 +29,4 @@ COM_LOW_BAT_ACT 0
 Sim model:
 Tools/simulation/gz/models/x500_base/model.sdf
 
-apptainer shell --fakeroot --writable-tmpfs dreamingfalcon.sif
-
-
-apptainer shell --fakeroot -B ~/workspace:/workspace dreamingfalcon.sif
+apptainer shell --fakeroot -B ~/workspace:/workspace dreamingfalcon2.sif
