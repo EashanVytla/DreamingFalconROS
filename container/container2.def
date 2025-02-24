@@ -79,6 +79,19 @@ From: px4io/px4-dev-base-jammy:2024-05-18
     wget https://github.com/JSBSim-Team/jsbsim/releases/download/v1.1.1a/JSBSim-devel_1.1.1-134.focal.amd64.deb
     dpkg -i JSBSim-devel_1.1.1-134.focal.amd64.deb
 
+    # Install MicroXRCEAgent
+    git clone https://github.com/eProsima/Micro-XRCE-DDS-Agent.git
+    cd Micro-XRCE-DDS-Agent
+    mkdir build
+    cd build
+    cmake ..
+    make
+    make install
+    ldconfig /usr/local/lib/
+
+    cd ../..
+    rm -rf Micro-XRCE-DDS-Agent
+
     # Clean up
     apt-get -y autoremove
     apt-get clean autoclean

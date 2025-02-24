@@ -30,22 +30,17 @@ def generate_launch_description():
         parameters=[{'config_file': config_file}]
     )
 
-    delay_timer2 = TimerAction(
-        period=5.0,
-        actions=[
-            Node(
-                package='px4_ros_com',
-                executable='drf_agent.py',
-                output='screen',
-                emulate_tty=True,
-                parameters=[{'config_file': config_file}]
-            )
-        ]
+    training_node = Node(
+        package='px4_ros_com',
+        executable='drf_agent.py',
+        output='screen',
+        emulate_tty=True,
+        parameters=[{'config_file': config_file}]
     )
 
     return LaunchDescription([
         config_file_arg,
         # micro_ros_agent,
         chirp_node,
-        delay_timer2
+        training_node
     ])
