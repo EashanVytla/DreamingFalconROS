@@ -288,7 +288,7 @@ def wm_train_process_fn(buffer, config_file, stop_event):
 
 def main(args=None) -> None:
     print('Waiting 5 seconds before starting...')
-    time.sleep(5)
+    time.sleep(7)
     print('Starting storage node...')
     
     rclpy.init(args=args)
