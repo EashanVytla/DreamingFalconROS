@@ -10,16 +10,6 @@ TIMEOUT=180
 # Create log directories
 mkdir -p "${LOG_DIR}"/{px4,agent,chirp}
 
-# Function to kill background processes on script exit
-cleanup() {
-    echo "Cleaning up processes..."
-    pkill -f "px4_sitl"
-    pkill -f "MicroXRCEAgent"
-    kill $(jobs -p) 2>/dev/null
-    exit
-}
-trap cleanup EXIT
-
 # Function to start PX4 SITL
 start_px4_sitl() {
     cd ${WORKSPACE_DIR}/PX4-Autopilot
@@ -43,19 +33,6 @@ start_px4_sitl() {
     return 1
 }
 
-# Start timeout monitor in background
-(
-    elapsed=0
-    while [ $elapsed -lt $TIMEOUT ]; do
-        echo "Time elapsed: ${elapsed}/${TIMEOUT} seconds"
-        sleep 10
-        elapsed=$((elapsed + 10))
-    done
-    echo "Timeout reached ($TIMEOUT seconds). Initiating shutdown..."
-    cleanup
-) &
-TIMEOUT_PID=$!
-
 # Replace existing PX4 SITL start section with:
 max_retries=3
 retry_count=0
@@ -75,6 +52,29 @@ if [ $retry_count -eq $max_retries ]; then
     cleanup
     exit 1
 fi
+
+# Function to kill background processes on script exit
+cleanup() {
+    echo "Cleaning up processes..."
+    pkill -f "px4_sitl"
+    pkill -f "MicroXRCEAgent"
+    kill $(jobs -p) 2>/dev/null
+    exit
+}
+trap cleanup EXIT
+
+# Start timeout monitor in background
+(
+    elapsed=0
+    while [ $elapsed -lt $TIMEOUT ]; do
+        echo "Time elapsed: ${elapsed}/${TIMEOUT} seconds"
+        sleep 10
+        elapsed=$((elapsed + 10))
+    done
+    echo "Timeout reached ($TIMEOUT seconds). Initiating shutdown..."
+    cleanup
+) &
+TIMEOUT_PID=$!
 
 # Start MicroXRCE Agent with logging
 MicroXRCEAgent udp4 -p 8888 > "${LOG_DIR}/agent/microros_agent.log" 2>&1 &
