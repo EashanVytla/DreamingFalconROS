@@ -146,6 +146,8 @@ class WorldModelLearning():
             model=self.model, 
             config=self.config
         )
+
+        self.batch_count = 0
         
     def compute_gradient_norm(self):
         total_norm = 0
@@ -203,6 +205,7 @@ class WorldModelLearning():
         print(f"Error: {error_mean}")
 
         if save_to_table:
+            print("Saving to table!")
             # Convert tensor to list for JSON serialization
             results = {
                 "run_index": self.run_index,
@@ -212,13 +215,15 @@ class WorldModelLearning():
                 "error_mean": error_mean.cpu().tolist()
             }
 
-            json_file = "experiment_results.json"
+            json_file = os.path.join(os.getcwd(), "experiment_results.json")
+            print(f"Json file path: {json_file}")
             try:
                 # Load existing results if file exists
                 if os.path.exists(json_file):
                     with open(json_file, 'r') as f:
                         data = json.load(f)
                 else:
+                    print("file doesn't exist")
                     data = {"experiments": []}
 
                 # Add new results
@@ -233,8 +238,6 @@ class WorldModelLearning():
                 print(f"Error saving results: {e}")
 
     def train_step(self):
-        batch_count = 0
-
         self.optimizer.zero_grad()
         if self.buffer.get_len() > self.config.replay_buffer.start_learning:
             dts, states, actions = self.buffer.sample(self.config.training.batch_size, 2)
@@ -253,15 +256,15 @@ class WorldModelLearning():
             self.optimizer.step()
             self.seq_scheduler.step(loss.item())
 
-            if batch_count % 25 == 0:
+            if self.batch_count % 25 == 0:
                 self.validate()
                 grad_norm = self.compute_gradient_norm()
-                self.writer.add_scalar("Norms/gradient_norm", grad_norm, batch_count)
+                self.writer.add_scalar("Norms/gradient_norm", grad_norm, self.batch_count)
                 weight_norm = self.compute_weight_norm()
-                self.writer.add_scalar("Norms/weight_norm", weight_norm, batch_count)
-                self.writer.add_scalar("Loss/train", loss, batch_count)
+                self.writer.add_scalar("Norms/weight_norm", weight_norm, self.batch_count)
+                self.writer.add_scalar("Loss/train", loss, self.batch_count)
             
-            batch_count += 1
+            self.batch_count += 1
         else:
             print(f"Not enough data yet: {self.buffer.get_len()}")
             time.sleep(1.0)
@@ -278,6 +281,7 @@ def wm_train_process_fn(buffer, config_file, stop_event):
         print(f"Training error: {e}")
     finally:
         wm_learner.validate(save_to_table=True)
+        print("Saving model...")
         wm_learner.save_model()
         if 'wm_learner' in locals():
             wm_learner.close_writer()
@@ -286,26 +290,26 @@ def main(args=None) -> None:
     print('Starting storage node...')
     
     rclpy.init(args=args)
-
     start_time = time.time()
-    timeout = 1200 # 20 minutes in seconds
 
     storage_node = Storage(None)
     config_file = storage_node.config_file
-
-    stop_event = mp.Event()
 
     with open(config_file, 'r') as file:
         config_dict = yaml.safe_load(file)
 
     config = AttrDict.from_dict(config_dict)
     
+    timeout = config.timeout
+
     buffer = ReplayBuffer(config)
 
     storage_node.buffer = buffer
 
-    if config.device == "cuda":
-        mp.set_start_method('spawn', force=True)
+    mp.set_start_method('spawn', force=True)
+
+    ctx = mp.get_context('spawn')
+    stop_event = ctx.Event()
 
     train_process = mp.Process(
         target=wm_train_process_fn, 
@@ -316,12 +320,14 @@ def main(args=None) -> None:
     try:
         while rclpy.ok():
             rclpy.spin_once(storage_node)
+            time.sleep(0.001)
 
             if time.time() - start_time > timeout:
                 stop_event.set()
                 print("\nTimeout reached! Shutting down.")
                 break
     except KeyboardInterrupt:
+        stop_event.set()
         print("keyboard interrupt")
     finally:
         print("Waiting for training process to finish cleanup (max 30 seconds)...")

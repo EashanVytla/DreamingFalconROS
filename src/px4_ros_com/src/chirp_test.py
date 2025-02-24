@@ -27,13 +27,16 @@ class OffboardControl(Node):
     def __init__(self) -> None:
         super().__init__('offboard_control_chirp')
 
-        with open('config.yaml', 'r') as file:
+        self.declare_parameter('config_file', 'config.yaml')
+        self.config_file = self.get_parameter('config_file').value
+
+        with open(self.config_file, 'r') as file:
             config_dict = yaml.safe_load(file)
 
-        config = AttrDict.from_dict(config_dict)
+        self.config = AttrDict.from_dict(config_dict)
 
-        self._mass = config.physics.mass #kg
-        self._g = config.physics.g
+        self._mass = self.config.physics.mass #kg
+        self._g = self.config.physics.g
 
         # State management
         self.current_state = DroneState.ARMING
@@ -86,7 +89,7 @@ class OffboardControl(Node):
         self.publish_counter = 0
 
         # Create a timer to publish control commands
-        self.timer = self.create_timer(config.physics.refresh_rate, self.timer_callback)
+        self.timer = self.create_timer(self.config.physics.refresh_rate, self.timer_callback)
 
     def vehicle_local_position_callback(self, vehicle_local_position):
         """Callback function for vehicle_local_position topic subscriber."""
@@ -295,9 +298,9 @@ def main(args=None) -> None:
     print('Starting offboard control node...')
     rclpy.init(args=args)
     start_time = time.time()
-    timeout = 1200
 
     offboard_control = OffboardControl()
+    timeout = offboard_control.config.timeout
 
     while rclpy.ok():
         rclpy.spin_once(offboard_control)

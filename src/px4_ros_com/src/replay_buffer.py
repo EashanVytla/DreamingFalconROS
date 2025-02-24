@@ -7,9 +7,11 @@ class ReplayBuffer:
     def __init__(self, config):
         self.device = config.device
 
-        self.counter = mp.Value('i', 0)
-        self.ptr = mp.Value('i', 0)
-        self.lock = mp.Lock()
+        ctx = mp.get_context('spawn')
+
+        self.counter = ctx.Value('i', 0)
+        self.ptr = ctx.Value('i', 0)
+        self.lock = ctx.Lock()
     
         self.capacity = config.replay_buffer.capacity
         self.norm_ranges = config.normalization
@@ -51,16 +53,16 @@ class ReplayBuffer:
                 size=(batch_size)
             ) % self.capacity
             
-            batch_states = torch.zeros((batch_size, sequence_length, self.states.shape[-1]), device=self.device)
-            batch_actions = torch.zeros((batch_size, sequence_length, self.actions.shape[-1]), device=self.device)
-            batch_dts = torch.zeros((batch_size, sequence_length), device=self.device)
+        batch_states = torch.zeros((batch_size, sequence_length, self.states.shape[-1]), device=self.device)
+        batch_actions = torch.zeros((batch_size, sequence_length, self.actions.shape[-1]), device=self.device)
+        batch_dts = torch.zeros((batch_size, sequence_length), device=self.device)
+        
+        for batch_idx, start_idx in enumerate(start_indices):
+            seq_start = start_idx
+            seq_end = seq_start + sequence_length
             
-            for batch_idx, start_idx in enumerate(start_indices):
-                seq_start = start_idx
-                seq_end = seq_start + sequence_length
-                
-                batch_states[batch_idx] = self.states[seq_start:seq_end, :]
-                batch_actions[batch_idx] = self.actions[seq_start:seq_end, :]
-                batch_dts[batch_idx] = self.dt[seq_start:seq_end]
+            batch_states[batch_idx] = self.states[seq_start:seq_end, :]
+            batch_actions[batch_idx] = self.actions[seq_start:seq_end, :]
+            batch_dts[batch_idx] = self.dt[seq_start:seq_end]
 
-            return batch_dts, batch_states, batch_actions
+        return batch_dts, batch_states, batch_actions

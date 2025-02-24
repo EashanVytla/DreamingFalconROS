@@ -1,4 +1,5 @@
 device: cuda
+timeout: 60
 
 physics: 
   refresh_rate: 0.05 # This is in ms 10hz

@@ -35,4 +35,5 @@ apptainer exec \
     --fakeroot \
     -B ${WORKSPACE_DIR}:/workspace \
     ${CONTAINER} \
+    cd /workspace/DreamingFalconROS \
     /workspace/container/run_inside_container.sh /workspace/configs/config_${CONFIG_INDEX}.yaml
