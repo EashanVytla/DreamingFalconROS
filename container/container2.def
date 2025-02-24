@@ -21,6 +21,15 @@ From: px4io/px4-dev-base-jammy:2024-05-18
     curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key -o /usr/share/keyrings/ros-archive-keyring.gpg
     echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros2/ubuntu $(. /etc/os-release && echo $UBUNTU_CODENAME) main" | tee /etc/apt/sources.list.d/ros2.list > /dev/null
 
+    apt update && apt install -y \
+        ros-humble-desktop \
+        ros-humble-ros-base \
+        ros-humble-gazebo-ros-pkgs \
+        ros-humble-gazebo-ros2-control \
+        ros-humble-xacro \
+        ros-humble-rqt \
+        python3-colcon-common-extensions
+
     # Set up Gazebo repository
     wget https://packages.osrfoundation.org/gazebo.gpg -O /usr/share/keyrings/pkgs-osrf-archive-keyring.gpg
     echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/pkgs-osrf-archive-keyring.gpg] http://packages.osrfoundation.org/gazebo/ubuntu-stable $(. /etc/os-release && echo $UBUNTU_CODENAME) main" | tee /etc/apt/sources.list.d/gazebo-stable.list > /dev/null
