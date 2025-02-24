@@ -51,7 +51,7 @@ sleep 5
 
 # Source ROS environment
 source /opt/ros/humble/setup.bash
-source ${WORKSPACE_DIR}/DreamingFalconROS/install/setup.bash
+source ${WORKSPACE_DIR}/DreamingFalconROS/install/local_setup.bash
 
 cd ${WORKSPACE_DIR}/DreamingFalconROS
 # Run chirp launch file with specified config and logging
