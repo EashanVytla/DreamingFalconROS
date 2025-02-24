@@ -23,6 +23,7 @@ start_px4_sitl() {
             echo "PX4 SITL ready for takeoff!"
             return 0
         fi
+        echo "Waiting for PX4 SITL ready for takeoff!"
         sleep 1
         attempt_time=$((attempt_time + 1))
     done
