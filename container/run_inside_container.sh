@@ -2,22 +2,22 @@
 
 CONFIG_FILE=$1
 CONFIG_INDEX=$(basename "$CONFIG_FILE" | sed 's/config_\(.*\)\.yaml/\1/')
-# WORKSPACE_DIR=".."
-WORKSPACE_DIR="/workspace"
+WORKSPACE_DIR=".."
+# WORKSPACE_DIR="/workspace"
 LOG_DIR="${WORKSPACE_DIR}/logs/run_${CONFIG_INDEX}"
 TIMEOUT=180
 
 # Create log directories
 mkdir -p "${LOG_DIR}"/{px4,agent,chirp}
 
+echo "Starting PX4 Autopilot..."
 HEADLESS=1 make px4_sitl jmavsim > "${LOG_DIR}/px4/px4_sitl.log" 2>&1 &
-sleep 20
-
-if [ $retry_count -eq $max_retries ]; then
-    echo "Failed to start PX4 SITL after $max_retries attempts"
-    cleanup
-    exit 1
-fi
+elapsed=0
+while [ $elapsed -lt 20 ]; do
+    echo "Time elapsed: ${elapsed}/20 seconds"
+    sleep 1
+    elapsed=$((elapsed + 1))
+done
 
 # Function to kill background processes on script exit
 cleanup() {
