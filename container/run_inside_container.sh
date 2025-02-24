@@ -33,12 +33,6 @@ start_px4_sitl() {
             echo "PX4 SITL ready for takeoff!"
             return 0
         fi
-        if grep -q "INFO  \[tone_alarm\] notify negative" "${LOG_DIR}/px4/px4_sitl.log"; then
-            echo "PX4 SITL startup failed, attempting restart..."
-            kill $PX4_PID
-            sleep 5
-            return 1
-        fi
         sleep 1
         attempt_time=$((attempt_time + 1))
     done
