@@ -10,46 +10,8 @@ TIMEOUT=180
 # Create log directories
 mkdir -p "${LOG_DIR}"/{px4,agent,chirp}
 
-# Function to start PX4 SITL
-start_px4_sitl() {
-    cd ${WORKSPACE_DIR}/PX4-Autopilot
-    HEADLESS=1 make px4_sitl jmavsim > "${LOG_DIR}/px4/px4_sitl.log" 2>&1 &
-    PX4_PID=$!
-    echo "Started PX4 SITL with PID: $PX4_PID"
-    
-    # Simple 20 second wait
-    for i in {1..20}; do
-        if ! kill -0 $PX4_PID 2>/dev/null; then
-            echo "PX4 SITL process died unexpectedly"
-            return 1
-        fi
-        echo "Waiting for PX4 SITL... ($i/20s)"
-        sleep 1
-    done
-
-    # Check if process is still running after wait
-    if kill -0 $PX4_PID 2>/dev/null; then
-        echo "PX4 SITL startup complete"
-        return 0
-    else
-        echo "PX4 SITL process died"
-        return 1
-    fi
-}
-
-# Replace existing PX4 SITL start section with:
-max_retries=3
-retry_count=0
-
-while [ $retry_count -lt $max_retries ]; do
-    start_px4_sitl
-    if [ $? -eq 0 ]; then
-        echo "PX4 SITL started successfully"
-        break
-    fi
-    retry_count=$((retry_count + 1))
-    echo "Retry $retry_count of $max_retries"
-done
+HEADLESS=1 make px4_sitl jmavsim > "${LOG_DIR}/px4/px4_sitl.log" 2>&1 &
+sleep 20
 
 if [ $retry_count -eq $max_retries ]; then
     echo "Failed to start PX4 SITL after $max_retries attempts"
