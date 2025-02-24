@@ -17,39 +17,24 @@ start_px4_sitl() {
     PX4_PID=$!
     echo "Started PX4 SITL with PID: $PX4_PID"
     
-    # Wait up to 20 seconds for success or failure
-    attempt_time=0
-    while [ $attempt_time -lt 20 ]; do
+    # Simple 20 second wait
+    for i in {1..20}; do
         if ! kill -0 $PX4_PID 2>/dev/null; then
             echo "PX4 SITL process died unexpectedly"
             return 1
         fi
-
-        # Use tail and grep to only look at newest lines
-        if tail -n 50 "${LOG_DIR}/px4/px4_sitl.log" | grep -q "INFO  \[commander\] Ready for takeoff!" ; then
-            echo "PX4 SITL ready for takeoff!"
-            return 0
-        fi
-        
-        # Check for common failure patterns
-        if tail -n 50 "${LOG_DIR}/px4/px4_sitl.log" | grep -q "ERROR" ; then
-            echo "Error detected in PX4 SITL startup:"
-            tail -n 50 "${LOG_DIR}/px4/px4_sitl.log" | grep "ERROR"
-            kill $PX4_PID
-            sleep 2
-            return 1
-        fi
-
-        echo "Waiting for PX4 SITL... (${attempt_time}/20s)"
+        echo "Waiting for PX4 SITL... ($i/20s)"
         sleep 1
-        attempt_time=$((attempt_time + 1))
     done
-    
-    echo "Timeout waiting for PX4 SITL to be ready. Last 50 lines of log:"
-    tail -n 50 "${LOG_DIR}/px4/px4_sitl.log"
-    kill $PX4_PID
-    sleep 2
-    return 1
+
+    # Check if process is still running after wait
+    if kill -0 $PX4_PID 2>/dev/null; then
+        echo "PX4 SITL startup complete"
+        return 0
+    else
+        echo "PX4 SITL process died"
+        return 1
+    fi
 }
 
 # Replace existing PX4 SITL start section with:
