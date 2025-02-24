@@ -16,6 +16,9 @@ from message_filters import Subscriber, ApproximateTimeSynchronizer
 import os
 from scipy.spatial.transform import Rotation as R
 import time
+import re
+from datetime import datetime
+import json
 
 class Storage(Node):
     def __init__(self, buffer) -> None:
@@ -107,12 +110,16 @@ class Storage(Node):
         self.last_timestamp = current_timestamp
 
 class WorldModelLearning():
-    def __init__(self, buffer):
+    def __init__(self, buffer, config_file):
         self.buffer = buffer
-        self.log_directory = "runs/2-17"
-        self.model_directory = "models/2-17"
 
-        with open('config.yaml', 'r') as file:
+        config_index = re.search(r'config_(\d+)\.yaml$', config_file)
+        self.run_index = int(config_index.group(1)) if config_index else 0
+
+        self.log_directory = f"runs/run_{self.run_index}"
+        self.model_directory = f"models/run_{self.run_index}"
+
+        with open(config_file, 'r') as file:
             config_dict = yaml.safe_load(file)
 
         self.config = AttrDict.from_dict(config_dict)
@@ -177,63 +184,100 @@ class WorldModelLearning():
     def close_writer(self):
         self.writer.close()
 
-    def train(self):
+    def validate(self, save_to_table=False):
+        print("Validating...")
+        dts, states, actions = self.buffer.sample(1, 32)
+        pred_traj = self.model.rollout(dts, states[:,0,:], actions)
+
+        # x_dn = torch.zeros_like(states)
+        # x_dn[:, :, 0:3] = states[:, :, 0:3]
+        # x_dn[:, :, 3:6] = denormalize(states[:, :, 3:6], self.norm_ranges.velo_min, self.norm_ranges.velo_max)
+        # x_dn[:, :, 6:9] = denormalize(states[:, :, 6:9], self.norm_ranges.euler_min, self.norm_ranges.euler_max)
+        # x_dn[:, :, 9:12] = denormalize(states[:, :, 9:12], self.norm_ranges.omega_min, self.norm_ranges.omega_max)
+
+        truth_mean = torch.mean(states[:, 1:, :], dim=(0,1))
+        pred_mean = torch.mean(pred_traj[:, 1:, :], dim=(0,1))
+        error_mean = torch.mean(pred_traj[:, 1:, :] - states[:, 1:, :], dim=(0,1))
+        print(f"Truth Mean: {truth_mean}")
+        print(f"Prediction Mean: {pred_mean}")
+        print(f"Error: {error_mean}")
+
+        if save_to_table:
+            # Convert tensor to list for JSON serialization
+            results = {
+                "run_index": self.run_index,
+                "timestamp": datetime.now().isoformat(),
+                "truth_mean": truth_mean.cpu().tolist(),
+                "pred_mean": pred_mean.cpu().tolist(),
+                "error_mean": error_mean.cpu().tolist()
+            }
+
+            json_file = "experiment_results.json"
+            try:
+                # Load existing results if file exists
+                if os.path.exists(json_file):
+                    with open(json_file, 'r') as f:
+                        data = json.load(f)
+                else:
+                    data = {"experiments": []}
+
+                # Add new results
+                data["experiments"].append(results)
+
+                # Save updated results
+                with open(json_file, 'w') as f:
+                    json.dump(data, f, indent=4)
+                print(f"Results saved to {json_file}")
+
+            except Exception as e:
+                print(f"Error saving results: {e}")
+
+    def train_step(self):
         batch_count = 0
-        while(True):
-            self.optimizer.zero_grad()
-            if self.buffer.get_len() > self.config.replay_buffer.start_learning:
-                dts, states, actions = self.buffer.sample(self.config.training.batch_size, 2)
-                pred_traj = self.model.rollout(dts, states[:,0,:], actions)
 
-                # pred_traj_norm = torch.zeros((pred_traj.shape[0], pred_traj.shape[1], 6), dtype=torch.float32, device=self.device)
-                # pred_traj_norm[:, :, 0:3] = normalize(pred_traj[:, :, 3:6], self.norm_ranges.velo_min, self.norm_ranges.velo_max)
-                # pred_traj_norm[:, :, 3:6] = normalize(pred_traj[:, :, 9:12], self.norm_ranges.omega_min, self.norm_ranges.omega_max)
-                loss = self.model.loss(
-                    torch.concat((pred_traj[:,1:,3:6], pred_traj[:,1:,9:12]), dim=-1), 
-                    torch.concat((states[:,1:,3:6], states[:,1:, 9:12]), dim=-1)
-                )
+        self.optimizer.zero_grad()
+        if self.buffer.get_len() > self.config.replay_buffer.start_learning:
+            dts, states, actions = self.buffer.sample(self.config.training.batch_size, 2)
+            pred_traj = self.model.rollout(dts, states[:,0,:], actions)
 
-                loss.backward()
-                torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=50.0)
-                self.optimizer.step()
-                self.seq_scheduler.step(loss.item())
+            # pred_traj_norm = torch.zeros((pred_traj.shape[0], pred_traj.shape[1], 6), dtype=torch.float32, device=self.device)
+            # pred_traj_norm[:, :, 0:3] = normalize(pred_traj[:, :, 3:6], self.norm_ranges.velo_min, self.norm_ranges.velo_max)
+            # pred_traj_norm[:, :, 3:6] = normalize(pred_traj[:, :, 9:12], self.norm_ranges.omega_min, self.norm_ranges.omega_max)
+            loss = self.model.loss(
+                torch.concat((pred_traj[:,1:,3:6], pred_traj[:,1:,9:12]), dim=-1), 
+                torch.concat((states[:,1:,3:6], states[:,1:, 9:12]), dim=-1)
+            )
 
-                if batch_count % 25 == 0:
-                    print("Validating...")
-                    _, val_states, val_actions = self.buffer.sample(1, 32)
-                    pred_traj_val = self.model.rollout(dts, states[:,0,:], actions)
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=50.0)
+            self.optimizer.step()
+            self.seq_scheduler.step(loss.item())
 
-                    # x_dn = torch.zeros_like(states)
-                    # x_dn[:, :, 0:3] = states[:, :, 0:3]
-                    # x_dn[:, :, 3:6] = denormalize(states[:, :, 3:6], self.norm_ranges.velo_min, self.norm_ranges.velo_max)
-                    # x_dn[:, :, 6:9] = denormalize(states[:, :, 6:9], self.norm_ranges.euler_min, self.norm_ranges.euler_max)
-                    # x_dn[:, :, 9:12] = denormalize(states[:, :, 9:12], self.norm_ranges.omega_min, self.norm_ranges.omega_max)
-
-                    print(f"Truth Mean: {torch.mean(val_states[:, 1:, :], dim=(0,1))}")
-                    print(f"Prediction Mean: {torch.mean(pred_traj_val[:, 1:, :], dim=(0,1))}")
-                    print(f"Error: {torch.mean(pred_traj_val[:, 1:, :] - val_states[:, 1:, :], dim=(0,1))}")
-                
-                    grad_norm = self.compute_gradient_norm()
-                    self.writer.add_scalar("Norms/gradient_norm", grad_norm, batch_count)
-                    weight_norm = self.compute_weight_norm()
-                    self.writer.add_scalar("Norms/weight_norm", weight_norm, batch_count)
-                    self.writer.add_scalar("Loss/train", loss, batch_count)
-                
-                batch_count += 1
-            else:
-                print(f"Not enough data yet: {self.buffer.get_len()}")
-                time.sleep(1.0)
+            if batch_count % 25 == 0:
+                self.validate()
+                grad_norm = self.compute_gradient_norm()
+                self.writer.add_scalar("Norms/gradient_norm", grad_norm, batch_count)
+                weight_norm = self.compute_weight_norm()
+                self.writer.add_scalar("Norms/weight_norm", weight_norm, batch_count)
+                self.writer.add_scalar("Loss/train", loss, batch_count)
+            
+            batch_count += 1
+        else:
+            print(f"Not enough data yet: {self.buffer.get_len()}")
+            time.sleep(1.0)
             
 
-def wm_train_process_fn(buffer):
+def wm_train_process_fn(buffer, config_file, stop_event):
     try:
-        wm_learner = WorldModelLearning(buffer)
-        wm_learner.train()
+        wm_learner = WorldModelLearning(buffer, config_file)
+        while not stop_event.is_set():
+            wm_learner.train_step()
     except KeyboardInterrupt:
         print("Training process interrupted")
     except Exception as e:
         print(f"Training error: {e}")
     finally:
+        wm_learner.validate(save_to_table=True)
         wm_learner.save_model()
         if 'wm_learner' in locals():
             wm_learner.close_writer()
@@ -246,22 +290,26 @@ def main(args=None) -> None:
     start_time = time.time()
     timeout = 1200 # 20 minutes in seconds
 
-    with open('config.yaml', 'r') as file:
+    storage_node = Storage(None)
+    config_file = storage_node.config_file
+
+    stop_event = mp.Event()
+
+    with open(config_file, 'r') as file:
         config_dict = yaml.safe_load(file)
 
     config = AttrDict.from_dict(config_dict)
-
-    if config.device == "cuda":
-        mp.set_start_method('spawn', force=True)
     
     buffer = ReplayBuffer(config)
 
-    storage_node = Storage(buffer)
-    config_file = storage_node.config_file
+    storage_node.buffer = buffer
+
+    if config.device == "cuda":
+        mp.set_start_method('spawn', force=True)
 
     train_process = mp.Process(
         target=wm_train_process_fn, 
-        args=[buffer, config_file]
+        args=[buffer, config_file, stop_event]
     )
     train_process.start()
     
@@ -270,13 +318,20 @@ def main(args=None) -> None:
             rclpy.spin_once(storage_node)
 
             if time.time() - start_time > timeout:
+                stop_event.set()
                 print("\nTimeout reached! Shutting down.")
                 break
     except KeyboardInterrupt:
         print("keyboard interrupt")
     finally:
-        train_process.terminate()
-        train_process.join()
+        print("Waiting for training process to finish cleanup (max 30 seconds)...")
+        train_process.join(timeout=60)  # Wait for graceful shutdown
+        
+        if train_process.is_alive():
+            print("Training process didn't exit gracefully, forcing termination...")
+            train_process.terminate()
+            train_process.join(timeout=5)  # Wait for forced termination
+            
         storage_node.destroy_node()
         rclpy.shutdown()
         
