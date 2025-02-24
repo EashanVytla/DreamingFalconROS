@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Directory setup
-WORKSPACE_DIR="/home/eashan/DreamingFalconROS"
+WORKSPACE_DIR="~workspace/DreamingFalconROS"
 CONFIG_DIR="${WORKSPACE_DIR}/configs"
 COMPLETED_DIR="${WORKSPACE_DIR}/configs/completed"
 

@@ -2,19 +2,21 @@
 
 CONFIG_FILE=$1
 CONFIG_INDEX=$(basename "$CONFIG_FILE" | sed 's/config_\(.*\)\.yaml/\1/')
-# WORKSPACE_DIR=".."
-WORKSPACE_DIR="/workspace"
+WORKSPACE_DIR=${HOME}
+# WORKSPACE_DIR="/workspace"
 LOG_DIR="${WORKSPACE_DIR}/logs/run_${CONFIG_INDEX}"
-TIMEOUT=180
+TIMEOUT=1260
+WAIT_FOR_PX4=30
 
 # Create log directories
 mkdir -p "${LOG_DIR}"/{px4,agent,chirp}
 
 echo "Starting PX4 Autopilot..."
+cd ${WORKSPACE_DIR}/PX4-Autopilot
 HEADLESS=1 make px4_sitl jmavsim > "${LOG_DIR}/px4/px4_sitl.log" 2>&1 &
 elapsed=0
-while [ $elapsed -lt 20 ]; do
-    echo "Time elapsed: ${elapsed}/20 seconds"
+while [ $elapsed -lt $WAIT_FOR_PX4 ]; do
+    echo "Time elapsed: ${elapsed}/${WAIT_FOR_PX4} seconds"
     sleep 1
     elapsed=$((elapsed + 1))
 done
@@ -51,6 +53,7 @@ sleep 5
 source /opt/ros/humble/setup.bash
 source ${WORKSPACE_DIR}/DreamingFalconROS/install/setup.bash
 
+cd ${WORKSPACE_DIR}/DreamingFalconROS
 # Run chirp launch file with specified config and logging
 echo "Running with configuration: ${CONFIG_FILE}"
 ros2 launch px4_ros_com chirp.launch.py config_file:=${WORKSPACE_DIR}/DreamingFalconROS/${CONFIG_FILE} \
