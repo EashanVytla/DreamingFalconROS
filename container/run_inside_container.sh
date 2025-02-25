@@ -74,5 +74,8 @@ wait
 echo "Tuning run completed. Logs available in ${LOG_DIR}"
 
 # Move config file to completed directory
-mv "$config_file" "${COMPLETED_DIR}/"
-echo "Moved ${filename} to completed directory"
+mv "${WORKSPACE_DIR}/DreamingFalconROS/config_${CONFIG_FILE}.yaml" "${COMPLETED_DIR}/"
+echo "Moved config_${CONFIG_FILE}.yaml to completed directory"
+
+# Let the cleanup() function handle process termination via the EXIT trap
+exit 0
