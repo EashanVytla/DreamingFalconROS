@@ -1,9 +1,9 @@
 #!/bin/bash
 #SBATCH --account=pas2152
-#SBATCH --job-name=wm_training_exp_%a    # Job name with array index
+#SBATCH --job-name=wm_training_exp_${CONFIG_INDEX}    # Job name
 #SBATCH --nodes=1 --ntasks-per-node=8
 #SBATCH --time=00:30:00         # Time limit hrs:min:sec
-#SBATCH --output=tuning_%a_%j.log  # Log includes both array index and job ID
+#SBATCH --output=tuning_${CONFIG_INDEX}_%j.log  # Standard output and error log
 #SBATCH --mail-type=ALL
 
 # Check if config index is provided
@@ -14,10 +14,12 @@ fi
 
 CONFIG_INDEX=$1
 
+echo "CONFIG ${CONFIG_INDEX}!"
+
 # Directory setup
-WORKSPACE_DIR-"/workspace"
-CONFIG_DIR="${WORKSPACE_DIR}/configs"
-CONTAINER="${WORKSPACE_DIR}/container/dreamingfalcon2.sif"
+WORKSPACE_DIR="${HOME}/workspace"
+CONFIG_DIR="${WORKSPACE_DIR}/DreamingFalconROS/configs"
+CONTAINER="${WORKSPACE_DIR}/DreamingFalconROS/container/dreamingfalcon.sif"
 CONFIG_FILE="${CONFIG_DIR}/config_${CONFIG_INDEX}.yaml"
 
 # Check if config file exists
@@ -27,7 +29,7 @@ if [ ! -f "$CONFIG_FILE" ]; then
 fi
 
 # Make the script executable
-chmod +x ${WORKSPACE_DIR}/container/run_inside_container.sh
+chmod +x ${WORKSPACE_DIR}/DreamingFalconROS/container/run_inside_container.sh
 
 # Run the container with the script and pass the config file
 apptainer exec \
@@ -35,5 +37,4 @@ apptainer exec \
     --nv \
     -B ${WORKSPACE_DIR}:/workspace \
     ${CONTAINER} \
-    cd /workspace/DreamingFalconROS \
-    /workspace/container/run_inside_container.sh /workspace/configs/config_${CONFIG_INDEX}.yaml
+    /bin/bash -c "cd /workspace/DreamingFalconROS && /workspace/DreamingFalconROS/container/run_inside_container.sh /workspace/DreamingFalconROS/configs/config_${CONFIG_INDEX}.yaml"
