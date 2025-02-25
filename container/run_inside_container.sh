@@ -10,6 +10,8 @@ TIMEOUT=1260
 WAIT_FOR_PX4=25
 BUILD_PATH="$WORKSPACE_DIR/PX4-Autopilot/build/px4_sitl_default"
 
+export HEADLESS=1
+
 # Create log directories
 mkdir -p "${LOG_DIR}"/{px4,agent,chirp}
 
