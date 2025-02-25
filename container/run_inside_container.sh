@@ -15,7 +15,7 @@ mkdir -p "${LOG_DIR}"/{px4,agent,chirp}
 
 echo "Starting PX4 Autopilot..."
 cd ${WORKSPACE_DIR}/PX4-Autopilot
-if ! $BUILD_PATH/bin/px4 -d "${BUILD_PATH}/etc" > "$LOG_DIR/px4/px4_sitl.log" 2> "$LOG_DIR/px4/px4_error.log" & then
+if ! $BUILD_PATH/bin/px4 > "$LOG_DIR/px4/px4_sitl.log" 2> "$LOG_DIR/px4/px4_error.log" & then
     PX4_PID=$!
     echo "Started PX4 Autopilot with PID: $PX4_PID"
 else
