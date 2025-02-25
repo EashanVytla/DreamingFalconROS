@@ -1,12 +1,16 @@
 #!/bin/bash
 
 # Directory setup
-WORKSPACE_DIR="~/workspace"
+WORKSPACE_DIR=$HOME/workspace
 CONFIG_DIR="${WORKSPACE_DIR}/DreamingFalconROS/configs"
 COMPLETED_DIR="${WORKSPACE_DIR}/DreamingFalconROS/configs/completed"
 
 # Create completed directory if it doesn't exist
 mkdir -p "${COMPLETED_DIR}"
+
+# Make scripts executable
+chmod +x ${WORKSPACE_DIR}/DreamingFalconROS/container/hp_tuning.sh
+chmod +x ${WORKSPACE_DIR}/DreamingFalconROS/container/run_inside_container.sh
 
 # Check if configs directory exists
 if [ ! -d "$CONFIG_DIR" ]; then
@@ -28,7 +32,7 @@ for config_file in ${CONFIG_DIR}/config_*.yaml; do
         if [ -f "${COMPLETED_DIR}/${filename}" ]; then
             echo "Skipping ${filename} - already completed"
             continue
-        }
+        fi  # Fixed syntax: removed }
 
         # Extract index from filename
         config_index=$(get_config_index "$config_file")
