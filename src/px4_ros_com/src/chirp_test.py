@@ -55,7 +55,6 @@ class OffboardControl(Node):
         self.chirp_yaw = math.pi/2 * scipy.signal.chirp(t=np.arange(0, 50, 0.1), f0=0.4, t1=50, f1=3.5, method="linear")
         self.steady_velo = 2.0
         self.chirp_counter = 0
-        self.pbar = None  # Initialize progress bar variable
         self.chirp_bool = [combo for combo in product([True, False], repeat=9) if combo != (False,)*9]
 
         # Configure QoS profile for publishing and subscribing
@@ -188,12 +187,10 @@ class OffboardControl(Node):
             self.get_logger().info("Takeoff complete, starting chirp")
             self.current_state = DroneState.CHIRP
             self.get_logger().set_level(rclpy.logging.LoggingSeverity.ERROR)
-            self.pbar = tqdm(total=len(self.chirp_x), desc="Chirp Progress")
 
     def handle_chirp_state(self, chirp_x: bool, chirp_y: bool, chirp_z: bool, vx: float, vy: float, vz: float, yaw: bool):
         """Handle the CHIRP state behavior"""
         if self.chirp_counter >= len(self.chirp_x):
-            self.pbar.close()
             self.get_logger().set_level(rclpy.logging.LoggingSeverity.INFO)
             self.current_state = DroneState.LAND
             return
@@ -208,13 +205,10 @@ class OffboardControl(Node):
             yaw=self.chirp_yaw[self.chirp_counter] if yaw else 0
         )
         self.chirp_counter += 1
-        self.pbar.update(1)  # Update progress bar
 
     def handle_land_state(self):
         """Handle the LAND state behavior"""
         print("LANDING!!!")
-        if self.pbar is not None:  # Ensure progress bar is closed when landing
-            self.pbar.close()
         self.land()
         if abs(self.vehicle_local_position.z) < self.landing_height_threshold:
             self.get_logger().info("Landing complete")
