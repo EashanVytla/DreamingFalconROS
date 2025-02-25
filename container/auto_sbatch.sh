@@ -1,9 +1,9 @@
 #!/bin/bash
 
 # Directory setup
-WORKSPACE_DIR="~workspace/DreamingFalconROS"
-CONFIG_DIR="${WORKSPACE_DIR}/configs"
-COMPLETED_DIR="${WORKSPACE_DIR}/configs/completed"
+WORKSPACE_DIR="~/workspace"
+CONFIG_DIR="${WORKSPACE_DIR}/DreamingFalconROS/configs"
+COMPLETED_DIR="${WORKSPACE_DIR}/DreamingFalconROS/configs/completed"
 
 # Create completed directory if it doesn't exist
 mkdir -p "${COMPLETED_DIR}"
@@ -36,7 +36,7 @@ for config_file in ${CONFIG_DIR}/config_*.yaml; do
         echo "Submitting job for config_${config_index}.yaml"
         
         # Submit the job and capture the job ID
-        job_id=$(sbatch --parsable ${WORKSPACE_DIR}/container/hp_tuning.sh "$config_index")
+        job_id=$(sbatch --parsable ${WORKSPACE_DIR}/DreamingFalconROS/container/hp_tuning.sh "$config_index")
         
         echo "Submitted job ${job_id} for config_${config_index}.yaml"
         

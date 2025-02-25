@@ -37,4 +37,4 @@ apptainer exec \
     --nv \
     -B ${WORKSPACE_DIR}:/workspace \
     ${CONTAINER} \
-    /bin/bash -c "cd /workspace/DreamingFalconROS && /workspace/DreamingFalconROS/container/run_inside_container.sh /workspace/DreamingFalconROS/configs/config_${CONFIG_INDEX}.yaml"
+    /bin/bash -c "/workspace/DreamingFalconROS/container/run_inside_container.sh /workspace/DreamingFalconROS/configs/config_${CONFIG_INDEX}.yaml"
