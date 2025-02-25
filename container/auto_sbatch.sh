@@ -44,10 +44,6 @@ for config_file in ${CONFIG_DIR}/config_*.yaml; do
         
         echo "Submitted job ${job_id} for config_${config_index}.yaml"
         
-        # Move config file to completed directory
-        mv "$config_file" "${COMPLETED_DIR}/"
-        echo "Moved ${filename} to completed directory"
-        
         # Optional: add a delay between submissions
         sleep 2
     fi

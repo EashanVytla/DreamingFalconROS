@@ -1,3 +1,5 @@
+# INREASED MODEL SIZE
+
 device: cpu
 timeout: 1200
 
@@ -39,7 +41,7 @@ replay_buffer:
 
 force_model:
   hidden_layers: 2
-  hidden_size: 256
+  hidden_size: 512
   output_dim: 6
   input_dim: 13
   state_dim: 12

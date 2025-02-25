@@ -5,6 +5,7 @@ CONFIG_INDEX=$(basename "$CONFIG_FILE" | sed 's/config_\(.*\)\.yaml/\1/')
 # WORKSPACE_DIR=${HOME}
 WORKSPACE_DIR="/workspace"
 LOG_DIR="${WORKSPACE_DIR}/logs/run_${CONFIG_INDEX}"
+COMPLETED_DIR="${WORKSPACE_DIR}/DreamingFalconROS/configs/completed"
 TIMEOUT=1260
 WAIT_FOR_PX4=30
 
@@ -64,3 +65,7 @@ ros2 launch px4_ros_com chirp.launch.py config_file:=${WORKSPACE_DIR}/DreamingFa
 wait
 
 echo "Tuning run completed. Logs available in ${LOG_DIR}"
+
+# Move config file to completed directory
+mv "$config_file" "${COMPLETED_DIR}/"
+echo "Moved ${filename} to completed directory"

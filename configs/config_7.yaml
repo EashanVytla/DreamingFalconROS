@@ -1,4 +1,5 @@
-#LOWERED LEARNING RATE
+# HIGHER LEARNING RATE
+
 device: cpu
 timeout: 1200
 
@@ -49,7 +50,7 @@ force_model:
 training: 
   num_epochs: 64
   batch_size: 64
-  lr: 0.00007 # LOWERED LEARNING RATE
+  lr: 0.001
   min_lr: 0.0075
   init_seq_len: 2
   max_seq_len: 2
