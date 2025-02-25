@@ -11,7 +11,7 @@ CONFIG_INDEX=$1
 # Directory setup
 WORKSPACE_DIR="${HOME_DIR}/workspace"
 CONFIG_DIR="${WORKSPACE_DIR}/DreamingFalconROS/configs"
-CONTAINER="${WORKSPACE_DIR}/DreamingFalconROS/container/dreamingfalcon2.sif"
+CONTAINER="${WORKSPACE_DIR}/DreamingFalconROS/container/dreamingfalcon.sif"
 CONFIG_FILE="${CONFIG_DIR}/config_${CONFIG_INDEX}.yaml"
 
 # Check if config file exists
