@@ -7,7 +7,6 @@ WORKSPACE_DIR="/workspace"
 LOG_DIR="${WORKSPACE_DIR}/logs/run_${CONFIG_INDEX}"
 COMPLETED_DIR="${WORKSPACE_DIR}/DreamingFalconROS/configs/completed"
 TIMEOUT=1260
-WAIT_FOR_PX4=25
 BUILD_PATH="$WORKSPACE_DIR/PX4-Autopilot/build/px4_sitl_default"
 
 export HEADLESS=1
@@ -17,19 +16,33 @@ mkdir -p "${LOG_DIR}"/{px4,agent,chirp}
 
 echo "Starting PX4 Autopilot..."
 cd ${WORKSPACE_DIR}/PX4-Autopilot
-if ! ($BUILD_PATH/bin/px4 2>&1 | grep -v "pxh>" > "$LOG_DIR/px4/px4_sitl.log") & then
+if ! $BUILD_PATH/bin/px4 -d > "$LOG_DIR/px4/px4_sitl.log" 2> "$LOG_DIR/px4/px4_error.log" & then
     PX4_PID=$!
     echo "Started PX4 Autopilot with PID: $PX4_PID"
 else
     echo "Failed to start PX4 Autopilot"
     exit 1
 fi
+
+timeout=30
 elapsed=0
-while [ $elapsed -lt $WAIT_FOR_PX4 ]; do
-    echo "Time elapsed: ${elapsed}/${WAIT_FOR_PX4} seconds"
+ready=false
+while [ $elapsed -lt $timeout ]; do
+    if grep -q "Ready for takeoff!" "$LOG_DIR/px4/px4_sitl.log"; then
+        ready=true
+        echo "PX4 is ready for takeoff!"
+        break
+    fi
     sleep 1
     elapsed=$((elapsed + 1))
+    echo "Waiting for PX4 to be ready... ${elapsed}/${timeout} seconds"
 done
+
+if [ "$ready" = false ]; then
+    echo "ERROR: PX4 failed to become ready within ${timeout} seconds"
+    cleanup
+    exit 1
+fi
 
 # Function to kill background processes on script exit
 cleanup() {
