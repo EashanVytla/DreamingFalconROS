@@ -2,8 +2,8 @@
 
 CONFIG_FILE=$1
 CONFIG_INDEX=$(basename "$CONFIG_FILE" | sed 's/config_\(.*\)\.yaml/\1/')
-WORKSPACE_DIR=${HOME}
-# WORKSPACE_DIR="/workspace"
+# WORKSPACE_DIR=${HOME}
+WORKSPACE_DIR="/workspace"
 LOG_DIR="${WORKSPACE_DIR}/logs/run_${CONFIG_INDEX}"
 COMPLETED_DIR="${WORKSPACE_DIR}/DreamingFalconROS/configs/completed"
 TIMEOUT=1260
