@@ -1,4 +1,10 @@
 #!/bin/bash
+#SBATCH --account=pas2152
+#SBATCH --job-name=auto_sbatch    # Job name
+#SBATCH --nodes=1 --ntasks-per-node=1
+#SBATCH --time=2:30:00         # Time limit hrs:min:sec
+#SBATCH --output=auto_sbatch.log  # Standard output and error log
+#SBATCH --mail-type=ALL
 
 # Directory setup
 WORKSPACE_DIR=$HOME/workspace
@@ -44,8 +50,8 @@ for config_file in ${CONFIG_DIR}/config_*.yaml; do
         
         echo "Submitted job ${job_id} for config_${config_index}.yaml"
         
-        # Optional: add a delay between submissions
-        sleep 2
+        # Optional: add a delay between submissions (22 minutes)
+        sleep 1320
     fi
 done
 

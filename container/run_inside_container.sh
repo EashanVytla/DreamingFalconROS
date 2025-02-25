@@ -2,19 +2,26 @@
 
 CONFIG_FILE=$1
 CONFIG_INDEX=$(basename "$CONFIG_FILE" | sed 's/config_\(.*\)\.yaml/\1/')
-# WORKSPACE_DIR=${HOME}
-WORKSPACE_DIR="/workspace"
+WORKSPACE_DIR=${HOME}
+# WORKSPACE_DIR="/workspace"
 LOG_DIR="${WORKSPACE_DIR}/logs/run_${CONFIG_INDEX}"
 COMPLETED_DIR="${WORKSPACE_DIR}/DreamingFalconROS/configs/completed"
 TIMEOUT=1260
-WAIT_FOR_PX4=30
+WAIT_FOR_PX4=25
+BUILD_PATH="$WORKSPACE_DIR/PX4-Autopilot/build/px4_sitl_default"
 
 # Create log directories
 mkdir -p "${LOG_DIR}"/{px4,agent,chirp}
 
 echo "Starting PX4 Autopilot..."
 cd ${WORKSPACE_DIR}/PX4-Autopilot
-HEADLESS=1 make px4_sitl jmavsim > "${LOG_DIR}/px4/px4_sitl.log" 2>&1 &
+if ! $BUILD_PATH/bin/px4 -d "${BUILD_PATH}/etc" > "$LOG_DIR/px4/px4_sitl.log" 2> "$LOG_DIR/px4/px4_error.log" & then
+    PX4_PID=$!
+    echo "Started PX4 Autopilot with PID: $PX4_PID"
+else
+    echo "Failed to start PX4 Autopilot"
+    exit 1
+fi
 elapsed=0
 while [ $elapsed -lt $WAIT_FOR_PX4 ]; do
     echo "Time elapsed: ${elapsed}/${WAIT_FOR_PX4} seconds"
