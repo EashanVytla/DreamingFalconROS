@@ -4,7 +4,7 @@
 #SBATCH --nodes=1 --ntasks-per-node=1
 #SBATCH --time=8:30:00         # Time limit hrs:min:sec
 #SBATCH --output=auto_sbatch.log  # Standard output and error log
-#SBATCH --mail-type=ALL
+#SBATCH --mail-type=BEGIN,FAIL
 
 # Directory setup
 WORKSPACE_DIR=$HOME/workspace

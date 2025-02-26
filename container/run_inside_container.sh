@@ -74,10 +74,11 @@ sleep 5
 
 # Source ROS environment
 source /opt/ros/humble/setup.bash
-source ${WORKSPACE_DIR}/DreamingFalconROS/install/local_setup.bash
-
 cd ${WORKSPACE_DIR}/DreamingFalconROS
 source .venv/bin/activate
+colcon build
+source ${WORKSPACE_DIR}/DreamingFalconROS/install/local_setup.bash
+
 # Run chirp launch file with specified config and logging
 echo "Running with configuration: ${CONFIG_FILE}"
 ros2 launch px4_ros_com chirp.launch.py config_file:=${WORKSPACE_DIR}/DreamingFalconROS/${CONFIG_FILE} \
