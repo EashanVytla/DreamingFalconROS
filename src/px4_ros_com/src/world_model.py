@@ -18,13 +18,13 @@ class MLP(nn.Module):
             if activation == 'relu':
                 layers.append(nn.ReLU())
             elif activation == 'silu':
-                layers.append(nn.SiLU)
+                layers.append(nn.SiLU())
             elif activation == 'selu':
-                layers.append(nn.SELU)
+                layers.append(nn.SELU())
             elif activation == 'elu':
-                layers.append(nn.ELU)
+                layers.append(nn.ELU())
             elif activation == 'softplus':
-                layers.append(nn.Softplus)
+                layers.append(nn.Softplus())
             else:
                 print("Don't know that activation! Defaulting to RELU.")
                 layers.append(nn.ReLU())
