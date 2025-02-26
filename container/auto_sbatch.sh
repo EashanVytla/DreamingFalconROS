@@ -2,7 +2,7 @@
 #SBATCH --account=pas2152
 #SBATCH --job-name=auto_sbatch    # Job name
 #SBATCH --nodes=1 --ntasks-per-node=1
-#SBATCH --time=2:30:00         # Time limit hrs:min:sec
+#SBATCH --time=8:30:00         # Time limit hrs:min:sec
 #SBATCH --output=auto_sbatch.log  # Standard output and error log
 #SBATCH --mail-type=ALL
 

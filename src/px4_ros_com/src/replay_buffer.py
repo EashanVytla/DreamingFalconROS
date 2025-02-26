@@ -33,7 +33,6 @@ class ReplayBuffer:
             self.actions[self.ptr.value, :] = norm_act
             self.dt[self.ptr.value] = dt
 
-            # TODO: FIX THIS! This isn't a true FIFO buffer
             self.ptr.value = (self.ptr.value + 1) % self.capacity
             self.counter.value = min(self.counter.value + 1, self.capacity)
 
@@ -43,26 +42,36 @@ class ReplayBuffer:
 
     def sample(self, batch_size: int, sequence_length: int):
         with self.lock:
-            available_data = self.counter.value
-            if available_data < sequence_length:
-                raise ValueError(f"Not enough data in buffer. Have {available_data}, need {sequence_length}")
-
             start_indices = np.random.randint(
                 self.ptr.value - self.counter.value, 
                 self.ptr.value - sequence_length + 1, 
                 size=(batch_size)
             ) % self.capacity
-            
+        
         batch_states = torch.zeros((batch_size, sequence_length, self.states.shape[-1]), device=self.device)
         batch_actions = torch.zeros((batch_size, sequence_length, self.actions.shape[-1]), device=self.device)
         batch_dts = torch.zeros((batch_size, sequence_length), device=self.device)
-        
+
         for batch_idx, start_idx in enumerate(start_indices):
             seq_start = start_idx
-            seq_end = seq_start + sequence_length
-            
-            batch_states[batch_idx] = self.states[seq_start:seq_end, :]
-            batch_actions[batch_idx] = self.actions[seq_start:seq_end, :]
-            batch_dts[batch_idx] = self.dt[seq_start:seq_end]
+            seq_end = (seq_start + sequence_length) % self.capacity
+
+            if seq_start > seq_end:
+                batch_states[batch_idx] = torch.concat(
+                    (self.states[seq_start:self.capacity, :], self.states[0:seq_end, :]), 
+                    dim=0
+                )
+                batch_actions[batch_idx] = torch.concat(
+                    (self.actions[seq_start:self.capacity, :], self.actions[0:seq_end, :]), 
+                    dim=0
+                )
+                batch_dts[batch_idx] = torch.concat(
+                    (self.dt[seq_start:self.capacity], self.dt[0:seq_end]), 
+                    dim=0
+                )
+            else:
+                batch_states[batch_idx] = self.states[seq_start:seq_end, :]
+                batch_actions[batch_idx] = self.actions[seq_start:seq_end, :]
+                batch_dts[batch_idx] = self.dt[seq_start:seq_end]
 
         return batch_dts, batch_states, batch_actions

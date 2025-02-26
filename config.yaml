@@ -34,7 +34,7 @@ normalization:
   mz_max: 0.36
 
 replay_buffer:
-  capacity: 10000
+  capacity: 2000
   start_learning: 1000
 
 force_model:
@@ -44,6 +44,7 @@ force_model:
   input_dim: 13
   state_dim: 12
   action_dim: 4
+  activation: relu
 
 training: 
   num_epochs: 64

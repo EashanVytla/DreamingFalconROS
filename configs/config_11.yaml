@@ -1,4 +1,4 @@
-# HIGHER LEARNING RATE
+# Wide Model 512 w/ small weight decay & lower batch size
 
 device: cpu
 timeout: 1200
@@ -36,12 +36,12 @@ normalization:
   mz_max: 0.36
 
 replay_buffer:
-  capacity: 10000
+  capacity: 2000
   start_learning: 1000
 
 force_model:
   hidden_layers: 2
-  hidden_size: 256
+  hidden_size: 512
   output_dim: 6
   input_dim: 13
   state_dim: 12
@@ -50,8 +50,8 @@ force_model:
 
 training: 
   num_epochs: 64
-  batch_size: 64
-  lr: 0.001
+  batch_size: 32
+  lr: 0.0003
   min_lr: 0.0075
   init_seq_len: 2
   max_seq_len: 2
@@ -59,7 +59,7 @@ training:
   seq_sch_thresh: 0.01
   loss_scaler: 1280
   beta: 0.2
-  weight_decay: 0.0
+  weight_decay: 0.0001
   cos_lr: False
 
 behavior:  

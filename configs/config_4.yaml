@@ -46,6 +46,7 @@ force_model:
   input_dim: 13
   state_dim: 12
   action_dim: 4
+  activation: relu
 
 training: 
   num_epochs: 64

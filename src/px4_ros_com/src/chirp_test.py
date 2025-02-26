@@ -49,10 +49,10 @@ class OffboardControl(Node):
         self.prod_cnt = 0
 
         # Chirp configuration
-        self.chirp_x = scipy.signal.chirp(t=np.arange(0, 50, 0.1), f0=0.1, t1=50, f1=2, method="linear")
-        self.chirp_y = scipy.signal.chirp(t=np.arange(0, 50, 0.1), f0=0.2, t1=50, f1=3, method="linear")
-        self.chirp_z = scipy.signal.chirp(t=np.arange(0, 50, 0.1), f0=0.3, t1=50, f1=4, method="linear") - 9.8
-        self.chirp_yaw = math.pi/2 * scipy.signal.chirp(t=np.arange(0, 50, 0.1), f0=0.4, t1=50, f1=3.5, method="linear")
+        self.chirp_x = scipy.signal.chirp(t=np.arange(0, 50, self.config.physics.refresh_rate), f0=0.1, t1=50, f1=2, method="linear")
+        self.chirp_y = scipy.signal.chirp(t=np.arange(0, 50, self.config.physics.refresh_rate), f0=0.2, t1=50, f1=3, method="linear")
+        self.chirp_z = scipy.signal.chirp(t=np.arange(0, 50, self.config.physics.refresh_rate), f0=0.3, t1=50, f1=4, method="linear") - 9.8
+        self.chirp_yaw = 2 * math.pi * scipy.signal.chirp(t=np.arange(0, 50, self.config.physics.refresh_rate), f0=0.25, t1=50, f1=2.5, method="linear")
         self.steady_velo = 2.0
         self.chirp_counter = 0
         self.chirp_bool = [combo for combo in product([True, False], repeat=9) if combo != (False,)*9]
@@ -136,6 +136,8 @@ class OffboardControl(Node):
         """Publish the trajectory setpoint."""
         msg = TrajectorySetpoint()
         msg.position = [x, y, z]
+        msg.velocity = [0.0, 0.0, 0.0]
+        msg.acceleration = [0.0, 0.0, 0.0]
         msg.yaw = yaw  # (90 degree)
         msg.timestamp = int(self.get_clock().now().nanoseconds / 1000)
         self.trajectory_setpoint_publisher.publish(msg)
@@ -202,7 +204,7 @@ class OffboardControl(Node):
             vx = vx,
             vy = vy,
             vz = vz,
-            yaw=self.chirp_yaw[self.chirp_counter] if yaw else 0
+            yaw=self.chirp_yaw[self.chirp_counter] if yaw else 0.0
         )
         self.chirp_counter += 1
 
@@ -258,21 +260,21 @@ class OffboardControl(Node):
             elif self.chirp_bool[self.prod_cnt][3]:
                 vx = -self.steady_velo
             else:
-                vx = 0
+                vx = 0.0
 
             if self.chirp_bool[self.prod_cnt][1]:
                 vy = self.steady_velo
             elif self.chirp_bool[self.prod_cnt][4]:
                 vy = -self.steady_velo
             else:
-                vy = 0
+                vy = 0.0
 
             if self.chirp_bool[self.prod_cnt][2]:
                 vz = self.steady_velo
             elif self.chirp_bool[self.prod_cnt][5]:
                 vz = -self.steady_velo
             else:
-                vz = 0
+                vz = 0.0
 
             self.handle_chirp_state(chirp_x=self.chirp_bool[self.prod_cnt][6], 
                                     chirp_y=self.chirp_bool[self.prod_cnt][7], 
@@ -280,7 +282,7 @@ class OffboardControl(Node):
                                     vx = vx,
                                     vy = vy,
                                     vz = vz,
-                                    yaw=math.radians(90)
+                                    yaw=True
                                     )
         elif self.current_state == DroneState.RESET:
             self.handle_reset_state()

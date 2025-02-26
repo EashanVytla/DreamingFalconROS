@@ -7,7 +7,7 @@ from rk4_solver import RK4_Solver
 import torch.nn.functional as F
 
 class MLP(nn.Module):
-    def __init__(self, input_dim, hidden_dims, output_dim):
+    def __init__(self, input_dim, hidden_dims, output_dim, activation='relu'):
         super(MLP, self).__init__()
         
         layers = []
@@ -15,7 +15,19 @@ class MLP(nn.Module):
         hidden_dims = [input_dim] + hidden_dims
         for i in range(1, len(hidden_dims)):
             layers.append(nn.Linear(hidden_dims[i-1], hidden_dims[i]))
-            layers.append(nn.ReLU())
+            if activation == 'relu':
+                layers.append(nn.ReLU())
+            elif activation == 'silu':
+                layers.append(nn.SiLU)
+            elif activation == 'selu':
+                layers.append(nn.SELU)
+            elif activation == 'elu':
+                layers.append(nn.ELU)
+            elif activation == 'softplus':
+                layers.append(nn.Softplus)
+            else:
+                print("Don't know that activation! Defaulting to RELU.")
+                layers.append(nn.ReLU())
 
         layers.append(nn.Linear(hidden_dims[-1], output_dim))
         
@@ -44,7 +56,7 @@ class WorldModel(nn.Module):
         
         self.I_inv = torch.inverse(self.I)
 
-        self.model = MLP(config.force_model.input_dim, hidden_dims, config.force_model.output_dim)
+        self.model = MLP(config.force_model.input_dim, hidden_dims, config.force_model.output_dim, config.force_model.activation)
         # self.init_weights()
         self.device = device
 
