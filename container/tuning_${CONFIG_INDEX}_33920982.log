@@ -1,0 +1,141 @@
+CONFIG 3!
+WARNING: Environment variable LD_PRELOAD already has value [], will not forward new value [/apps/xalt/xalt/lib64/libxalt_init.so] from parent process environment
+INFO:    gocryptfs not found, will not be able to use gocryptfs
+source: open /users/PAS2152/eashanvytla1/workspace/DreamingFalconROS/container/setup.sh: no such file or directory
+Starting PX4 Autopilot...
+Started PX4 Autopilot with PID: 128609
+Waiting for PX4 to be ready... 1/30 seconds
+Waiting for PX4 to be ready... 2/30 seconds
+Waiting for PX4 to be ready... 3/30 seconds
+Waiting for PX4 to be ready... 4/30 seconds
+Waiting for PX4 to be ready... 5/30 seconds
+Waiting for PX4 to be ready... 6/30 seconds
+Waiting for PX4 to be ready... 7/30 seconds
+Waiting for PX4 to be ready... 8/30 seconds
+Waiting for PX4 to be ready... 9/30 seconds
+Waiting for PX4 to be ready... 10/30 seconds
+Waiting for PX4 to be ready... 11/30 seconds
+Waiting for PX4 to be ready... 12/30 seconds
+Waiting for PX4 to be ready... 13/30 seconds
+Waiting for PX4 to be ready... 14/30 seconds
+Waiting for PX4 to be ready... 15/30 seconds
+PX4 is ready for takeoff!
+Time elapsed: 0/1260 seconds
+Running with configuration: configs/config_3.yaml
+Time elapsed: 10/1260 seconds
+Time elapsed: 20/1260 seconds
+Time elapsed: 30/1260 seconds
+Time elapsed: 40/1260 seconds
+Time elapsed: 50/1260 seconds
+Time elapsed: 60/1260 seconds
+Time elapsed: 70/1260 seconds
+Time elapsed: 80/1260 seconds
+Time elapsed: 90/1260 seconds
+Time elapsed: 100/1260 seconds
+Time elapsed: 110/1260 seconds
+Time elapsed: 120/1260 seconds
+Time elapsed: 130/1260 seconds
+Time elapsed: 140/1260 seconds
+Time elapsed: 150/1260 seconds
+Time elapsed: 160/1260 seconds
+Time elapsed: 170/1260 seconds
+Time elapsed: 180/1260 seconds
+Time elapsed: 190/1260 seconds
+Time elapsed: 200/1260 seconds
+Time elapsed: 210/1260 seconds
+Time elapsed: 220/1260 seconds
+Time elapsed: 230/1260 seconds
+Time elapsed: 240/1260 seconds
+Time elapsed: 250/1260 seconds
+Time elapsed: 260/1260 seconds
+Time elapsed: 270/1260 seconds
+Time elapsed: 280/1260 seconds
+Time elapsed: 290/1260 seconds
+Time elapsed: 300/1260 seconds
+Time elapsed: 310/1260 seconds
+Time elapsed: 320/1260 seconds
+Time elapsed: 330/1260 seconds
+Time elapsed: 340/1260 seconds
+Time elapsed: 350/1260 seconds
+Time elapsed: 360/1260 seconds
+Time elapsed: 370/1260 seconds
+Time elapsed: 380/1260 seconds
+Time elapsed: 390/1260 seconds
+Time elapsed: 400/1260 seconds
+Time elapsed: 410/1260 seconds
+Time elapsed: 420/1260 seconds
+Time elapsed: 430/1260 seconds
+Time elapsed: 440/1260 seconds
+Time elapsed: 450/1260 seconds
+Time elapsed: 460/1260 seconds
+Time elapsed: 470/1260 seconds
+Time elapsed: 480/1260 seconds
+Time elapsed: 490/1260 seconds
+Time elapsed: 500/1260 seconds
+Time elapsed: 510/1260 seconds
+Time elapsed: 520/1260 seconds
+Time elapsed: 530/1260 seconds
+Time elapsed: 540/1260 seconds
+Time elapsed: 550/1260 seconds
+Time elapsed: 560/1260 seconds
+Time elapsed: 570/1260 seconds
+Time elapsed: 580/1260 seconds
+Time elapsed: 590/1260 seconds
+Time elapsed: 600/1260 seconds
+Time elapsed: 610/1260 seconds
+Time elapsed: 620/1260 seconds
+Time elapsed: 630/1260 seconds
+Time elapsed: 640/1260 seconds
+Time elapsed: 650/1260 seconds
+Time elapsed: 660/1260 seconds
+Time elapsed: 670/1260 seconds
+Time elapsed: 680/1260 seconds
+Time elapsed: 690/1260 seconds
+Time elapsed: 700/1260 seconds
+Time elapsed: 710/1260 seconds
+Time elapsed: 720/1260 seconds
+Time elapsed: 730/1260 seconds
+Time elapsed: 740/1260 seconds
+Time elapsed: 750/1260 seconds
+Time elapsed: 760/1260 seconds
+Time elapsed: 770/1260 seconds
+Time elapsed: 780/1260 seconds
+Time elapsed: 790/1260 seconds
+Time elapsed: 800/1260 seconds
+Time elapsed: 810/1260 seconds
+Time elapsed: 820/1260 seconds
+Time elapsed: 830/1260 seconds
+Time elapsed: 840/1260 seconds
+Time elapsed: 850/1260 seconds
+Time elapsed: 860/1260 seconds
+Time elapsed: 870/1260 seconds
+Time elapsed: 880/1260 seconds
+Time elapsed: 890/1260 seconds
+Time elapsed: 900/1260 seconds
+Time elapsed: 910/1260 seconds
+Time elapsed: 920/1260 seconds
+Time elapsed: 930/1260 seconds
+Time elapsed: 940/1260 seconds
+Time elapsed: 950/1260 seconds
+Time elapsed: 960/1260 seconds
+Time elapsed: 970/1260 seconds
+Time elapsed: 980/1260 seconds
+Time elapsed: 990/1260 seconds
+Time elapsed: 1000/1260 seconds
+Time elapsed: 1010/1260 seconds
+Time elapsed: 1020/1260 seconds
+Time elapsed: 1030/1260 seconds
+Time elapsed: 1040/1260 seconds
+Time elapsed: 1050/1260 seconds
+Time elapsed: 1060/1260 seconds
+Time elapsed: 1070/1260 seconds
+Time elapsed: 1080/1260 seconds
+Time elapsed: 1090/1260 seconds
+Time elapsed: 1100/1260 seconds
+Time elapsed: 1110/1260 seconds
+Time elapsed: 1120/1260 seconds
+Time elapsed: 1130/1260 seconds
+Time elapsed: 1140/1260 seconds
+Time elapsed: 1150/1260 seconds
+Time elapsed: 1160/1260 seconds
+slurmstepd: error: *** JOB 33920982 ON p0063 CANCELLED AT 2025-02-25T15:25:07 ***

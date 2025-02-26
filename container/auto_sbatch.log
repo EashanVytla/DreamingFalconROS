@@ -1,0 +1,15 @@
+Submitting job for config_0.yaml
+Submitted job 33921601 for config_0.yaml
+Submitting job for config_1.yaml
+Submitted job 33921930 for config_1.yaml
+Submitting job for config_2.yaml
+Submitted job 33922393 for config_2.yaml
+Submitting job for config_3.yaml
+Submitted job 33922712 for config_3.yaml
+Submitting job for config_4.yaml
+Submitted job 33922817 for config_4.yaml
+Submitting job for config_5.yaml
+Submitted job 33923343 for config_5.yaml
+Submitting job for config_6.yaml
+Submitted job 33923902 for config_6.yaml
+slurmstepd: error: *** JOB 33921561 ON p0206 CANCELLED AT 2025-02-25T18:00:37 DUE TO TIME LIMIT ***

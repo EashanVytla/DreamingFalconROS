@@ -1,0 +1,38 @@
+CONFIG 2!
+WARNING: Environment variable LD_PRELOAD already has value [], will not forward new value [/apps/xalt/xalt/lib64/libxalt_init.so] from parent process environment
+INFO:    gocryptfs not found, will not be able to use gocryptfs
+source: open /users/PAS2152/eashanvytla1/workspace/DreamingFalconROS/container/setup.sh: no such file or directory
+Starting PX4 Autopilot...
+Started PX4 Autopilot with PID: 165408
+Waiting for PX4 to be ready... 1/30 seconds
+Waiting for PX4 to be ready... 2/30 seconds
+Waiting for PX4 to be ready... 3/30 seconds
+Waiting for PX4 to be ready... 4/30 seconds
+Waiting for PX4 to be ready... 5/30 seconds
+Waiting for PX4 to be ready... 6/30 seconds
+Waiting for PX4 to be ready... 7/30 seconds
+Waiting for PX4 to be ready... 8/30 seconds
+Waiting for PX4 to be ready... 9/30 seconds
+Waiting for PX4 to be ready... 10/30 seconds
+Waiting for PX4 to be ready... 11/30 seconds
+Waiting for PX4 to be ready... 12/30 seconds
+Waiting for PX4 to be ready... 13/30 seconds
+Waiting for PX4 to be ready... 14/30 seconds
+Waiting for PX4 to be ready... 15/30 seconds
+Waiting for PX4 to be ready... 16/30 seconds
+Waiting for PX4 to be ready... 17/30 seconds
+Waiting for PX4 to be ready... 18/30 seconds
+Waiting for PX4 to be ready... 19/30 seconds
+Waiting for PX4 to be ready... 20/30 seconds
+Waiting for PX4 to be ready... 21/30 seconds
+Waiting for PX4 to be ready... 22/30 seconds
+Waiting for PX4 to be ready... 23/30 seconds
+Waiting for PX4 to be ready... 24/30 seconds
+Waiting for PX4 to be ready... 25/30 seconds
+Waiting for PX4 to be ready... 26/30 seconds
+Waiting for PX4 to be ready... 27/30 seconds
+Waiting for PX4 to be ready... 28/30 seconds
+Waiting for PX4 to be ready... 29/30 seconds
+Waiting for PX4 to be ready... 30/30 seconds
+ERROR: PX4 failed to become ready within 30 seconds
+/workspace/DreamingFalconROS/container/run_inside_container.sh: line 43: cleanup: command not found
