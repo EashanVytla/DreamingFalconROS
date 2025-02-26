@@ -1,15 +1,35 @@
 Submitting job for config_0.yaml
-Submitted job 33921601 for config_0.yaml
+Submitted job 33931916 for config_0.yaml
+Submitting job for config_10.yaml
+Submitted job 33932691 for config_10.yaml
+Submitting job for config_11.yaml
+Submitted job 33932832 for config_11.yaml
+Submitting job for config_12.yaml
+Submitted job 33933183 for config_12.yaml
+Submitting job for config_13.yaml
+Submitted job 33933870 for config_13.yaml
+Submitting job for config_14.yaml
+Submitted job 33934271 for config_14.yaml
+Submitting job for config_15.yaml
+Submitted job 33934598 for config_15.yaml
+Submitting job for config_16.yaml
+Submitted job 33935087 for config_16.yaml
 Submitting job for config_1.yaml
-Submitted job 33921930 for config_1.yaml
+Submitted job 33935418 for config_1.yaml
 Submitting job for config_2.yaml
-Submitted job 33922393 for config_2.yaml
+Submitted job 33935818 for config_2.yaml
 Submitting job for config_3.yaml
-Submitted job 33922712 for config_3.yaml
+Submitted job 33936209 for config_3.yaml
 Submitting job for config_4.yaml
-Submitted job 33922817 for config_4.yaml
+Submitted job 33936410 for config_4.yaml
 Submitting job for config_5.yaml
-Submitted job 33923343 for config_5.yaml
+Submitted job 33936523 for config_5.yaml
 Submitting job for config_6.yaml
-Submitted job 33923902 for config_6.yaml
-slurmstepd: error: *** JOB 33921561 ON p0206 CANCELLED AT 2025-02-25T18:00:37 DUE TO TIME LIMIT ***
+Submitted job 33936904 for config_6.yaml
+Submitting job for config_7.yaml
+Submitted job 33937008 for config_7.yaml
+Submitting job for config_8.yaml
+Submitted job 33937131 for config_8.yaml
+Submitting job for config_9.yaml
+Submitted job 33937250 for config_9.yaml
+All jobs submitted. Monitor with 'squeue -u eashanvytla1'
