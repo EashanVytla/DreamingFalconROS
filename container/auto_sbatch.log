@@ -6,3 +6,4 @@ Submitting job for config_15.yaml
 Submitted job 33938164 for config_15.yaml
 Submitting job for config_16.yaml
 Submitted job 33938301 for config_16.yaml
+All jobs submitted. Monitor with 'squeue -u eashanvytla1'
