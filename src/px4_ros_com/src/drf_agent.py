@@ -192,7 +192,7 @@ class WorldModelLearning():
             if save_to_table:
                 batch_size = 128
             print("Validating...")
-            dts, states, actions = self.buffer.sample(batch_size, 2)
+            dts, states, actions = self.buffer.sample(batch_size, 32)
             pred_traj = self.model.rollout(dts, states[:,0,:], actions)
 
             # x_dn = torch.zeros_like(states)
