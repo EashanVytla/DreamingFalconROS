@@ -1,3 +1,5 @@
+# BASELINE (No changes)
+
 device: cpu
 timeout: 1200
 
@@ -35,7 +37,7 @@ normalization:
 
 replay_buffer:
   capacity: 2000
-  start_learning: 100
+  start_learning: 1000
 
 force_model:
   hidden_layers: 2

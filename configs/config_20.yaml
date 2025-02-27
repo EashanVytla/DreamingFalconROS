@@ -1,3 +1,5 @@
+# 0.0007 lr
+
 device: cpu
 timeout: 1200
 
@@ -35,11 +37,11 @@ normalization:
 
 replay_buffer:
   capacity: 2000
-  start_learning: 100
+  start_learning: 1000
 
 force_model:
   hidden_layers: 2
-  hidden_size: 256
+  hidden_size: 512
   output_dim: 6
   input_dim: 13
   state_dim: 12
@@ -49,7 +51,7 @@ force_model:
 training: 
   num_epochs: 64
   batch_size: 64
-  lr: 0.0003
+  lr: 0.0007
   min_lr: 0.0075
   init_seq_len: 2
   max_seq_len: 2

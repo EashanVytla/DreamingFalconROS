@@ -13,6 +13,7 @@ import yaml
 from utils import AttrDict, l2_dist
 from itertools import product
 import time
+import random
 
 class DroneState(Enum):
     ARMING = auto()
@@ -56,6 +57,7 @@ class OffboardControl(Node):
         self.steady_velo = 2.0
         self.chirp_counter = 0
         self.chirp_bool = [combo for combo in product([True, False], repeat=9) if combo != (False,)*9]
+        random.shuffle(self.chirp_bool)
 
         # Configure QoS profile for publishing and subscribing
         qos_profile = QoSProfile(
@@ -222,7 +224,7 @@ class OffboardControl(Node):
         
         dist = l2_dist(pos, self.origin)
 
-        if dist > 0.75:
+        if dist > 2.0:
             self.publish_position_setpoint(self.origin[0].item(), self.origin[1].item(), self.origin[2].item(), math.radians(90))
         else:
             self.current_state = self.cache_state

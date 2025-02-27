@@ -47,7 +47,7 @@ class WorldModel(nn.Module):
         self._mass = config.physics.mass
         self._g = config.physics.g
         self._loss_scaler = config.training.loss_scaler
-        self.epsilon = 1e-6
+        self.epsilon = 1e-7
         self._beta = config.training.beta
 
         self.I = torch.tensor([[config.physics.I_xx, config.physics.I_xy, config.physics.I_xz],

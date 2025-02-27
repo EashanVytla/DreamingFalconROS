@@ -187,58 +187,62 @@ class WorldModelLearning():
         self.writer.close()
 
     def validate(self, save_to_table=False):
-        batch_size = 1
-        if save_to_table:
-            batch_size = 64
-        print("Validating...")
-        dts, states, actions = self.buffer.sample(batch_size, 32)
-        pred_traj = self.model.rollout(dts, states[:,0,:], actions)
+        with torch.no_grad():
+            batch_size = 1
+            if save_to_table:
+                batch_size = 128
+            print("Validating...")
+            dts, states, actions = self.buffer.sample(batch_size, 2)
+            pred_traj = self.model.rollout(dts, states[:,0,:], actions)
 
-        # x_dn = torch.zeros_like(states)
-        # x_dn[:, :, 0:3] = states[:, :, 0:3]
-        # x_dn[:, :, 3:6] = denormalize(states[:, :, 3:6], self.norm_ranges.velo_min, self.norm_ranges.velo_max)
-        # x_dn[:, :, 6:9] = denormalize(states[:, :, 6:9], self.norm_ranges.euler_min, self.norm_ranges.euler_max)
-        # x_dn[:, :, 9:12] = denormalize(states[:, :, 9:12], self.norm_ranges.omega_min, self.norm_ranges.omega_max)
+            # x_dn = torch.zeros_like(states)
+            # x_dn[:, :, 0:3] = states[:, :, 0:3]
+            # x_dn[:, :, 3:6] = denormalize(states[:, :, 3:6], self.norm_ranges.velo_min, self.norm_ranges.velo_max)
+            # x_dn[:, :, 6:9] = denormalize(states[:, :, 6:9], self.norm_ranges.euler_min, self.norm_ranges.euler_max)
+            # x_dn[:, :, 9:12] = denormalize(states[:, :, 9:12], self.norm_ranges.omega_min, self.norm_ranges.omega_max)
 
-        truth_mean = torch.mean(states[:, 1:, :], dim=(0,1))
-        pred_mean = torch.mean(pred_traj[:, 1:, :], dim=(0,1))
-        error_mean = torch.mean(pred_traj[:, 1:, :] - states[:, 1:, :], dim=(0,1))
-        print(f"Truth Mean: {truth_mean}")
-        print(f"Prediction Mean: {pred_mean}")
-        print(f"Error: {error_mean}")
+            truth_mean = torch.mean(states[:, 1:, :], dim=(0,1))
+            pred_mean = torch.mean(pred_traj[:, 1:, :], dim=(0,1))
+            error_mean = torch.mean(pred_traj[:, 1:, :] - states[:, 1:, :], dim=(0,1))
+            rel_error_mean = torch.mean(torch.abs(pred_traj[:, 1:, :] - states[:, 1:, :]) / (torch.abs(states[:, 1:, :]) + 1e-8), dim=(0,1))
+            print(f"Truth Mean: {truth_mean}")
+            print(f"Prediction Mean: {pred_mean}")
+            print(f"Error: {error_mean}")
+            print(f"Relative Error: {rel_error_mean}")
 
-        if save_to_table:
-            print("Saving to table!")
-            # Convert tensor to list for JSON serialization
-            results = {
-                "run_index": self.run_index,
-                "timestamp": datetime.now().isoformat(),
-                "truth_mean": truth_mean.cpu().tolist(),
-                "pred_mean": pred_mean.cpu().tolist(),
-                "error_mean": error_mean.cpu().tolist()
-            }
+            if save_to_table:
+                print("Saving to table!")
+                # Convert tensor to list for JSON serialization
+                results = {
+                    "run_index": self.run_index,
+                    "timestamp": datetime.now().isoformat(),
+                    "truth_mean": truth_mean.cpu().tolist(),
+                    "pred_mean": pred_mean.cpu().tolist(),
+                    "error_mean": error_mean.cpu().tolist(),
+                    "rel_error_mean": rel_error_mean.cpu().tolist()
+                }
 
-            json_file = os.path.join(os.getcwd(), "experiment_results.json")
-            print(f"Json file path: {json_file}")
-            try:
-                # Load existing results if file exists
-                if os.path.exists(json_file):
-                    with open(json_file, 'r') as f:
-                        data = json.load(f)
-                else:
-                    print("file doesn't exist")
-                    data = {"experiments": []}
+                json_file = os.path.join(os.getcwd(), "experiment_results.json")
+                print(f"Json file path: {json_file}")
+                try:
+                    # Load existing results if file exists
+                    if os.path.exists(json_file):
+                        with open(json_file, 'r') as f:
+                            data = json.load(f)
+                    else:
+                        print("file doesn't exist")
+                        data = {"experiments": []}
 
-                # Add new results
-                data["experiments"].append(results)
+                    # Add new results
+                    data["experiments"].append(results)
 
-                # Save updated results
-                with open(json_file, 'w') as f:
-                    json.dump(data, f, indent=4)
-                print(f"Results saved to {json_file}")
+                    # Save updated results
+                    with open(json_file, 'w') as f:
+                        json.dump(data, f, indent=4)
+                    print(f"Results saved to {json_file}")
 
-            except Exception as e:
-                print(f"Error saving results: {e}")
+                except Exception as e:
+                    print(f"Error saving results: {e}")
 
     def train_step(self):
         self.optimizer.zero_grad()
