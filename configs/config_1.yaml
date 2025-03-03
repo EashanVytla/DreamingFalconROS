@@ -1,5 +1,3 @@
-# HIGHER LEARNING RATE
-
 device: cpu
 timeout: 1200
 
@@ -18,6 +16,7 @@ physics:
   I_zz: 0.04000000000000001
 
 normalization:
+  norm: False
   velo_min: -10
   velo_max: 10
   euler_min: -1.0
@@ -26,10 +25,10 @@ normalization:
   omega_max: 1.0
   act_min: 150
   act_max: 1000
-  fxy_min: -2.5
-  fxy_max: 2.5
-  fz_min: -30
-  fz_max: 30
+  fxy_min: -10
+  fxy_max: 10
+  fz_min: -20 #z = 15 xy = 8
+  fz_max: 20
   mxy_min: -1.0
   mxy_max: 1.0
   mz_min: -0.36
@@ -51,7 +50,7 @@ force_model:
 training: 
   num_epochs: 64
   batch_size: 64
-  lr: 0.001
+  lr: 0.0001
   min_lr: 0.0075
   init_seq_len: 2
   max_seq_len: 2

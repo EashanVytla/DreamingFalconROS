@@ -215,6 +215,8 @@ class WorldModel(nn.Module):
         forces[:, 3:5] = utils.denormalize(forces_norm[:, 3:5], self.norm_config.mxy_min, self.norm_config.mxy_max)
         forces[:, 5] = utils.denormalize(forces_norm[:, 5], self.norm_config.mz_min, self.norm_config.mz_max)
 
+        # print(torch.max(forces, dim=0))
+
         return self.six_dof(x_t_dn if self.norm_config.norm else x_t, dt, forces)
     
     def loss(self, pred, truth):

@@ -200,21 +200,37 @@ class WorldModelLearning():
                 states[:, :, 6:9] = denormalize(states[:, :, 6:9], self.norm_ranges.euler_min, self.norm_ranges.euler_max)
                 states[:, :, 9:12] = denormalize(states[:, :, 9:12], self.norm_ranges.omega_min, self.norm_ranges.omega_max)
 
+            # Absolute error
             abs_error = torch.abs(pred_traj[:, 1:, :] - states[:, 1:, :])
-            rel_error = abs_error / (torch.abs(states[:, 1:, :]) + 1e-8)
 
+            # Calculate squared error for RMSE
+            squared_error = torch.square(pred_traj[:, 1:, :] - states[:, 1:, :])
+            
+            # Calculate means
             truth_mean = torch.mean(states[:, 1:, :], dim=(0,1))
             pred_mean = torch.mean(pred_traj[:, 1:, :], dim=(0,1))
             error_mean = torch.mean(abs_error, dim=(0,1))
-            rel_error_mean = torch.mean(rel_error, dim=(0,1))
-            rel_error_std = torch.std(rel_error, dim=(0,1))
+            
+            # Calculate RMSE per state dimension
+            rmse = torch.sqrt(torch.mean(squared_error, dim=(0,1)))
+            
+            # Calculate overall RMSE for key state groups
+            position_rmse = torch.sqrt(torch.mean(squared_error[:,:,0:3]))
+            velocity_rmse = torch.sqrt(torch.mean(squared_error[:,:,3:6]))
+            attitude_rmse = torch.sqrt(torch.mean(squared_error[:,:,6:9]))
+            angular_vel_rmse = torch.sqrt(torch.mean(squared_error[:,:,9:12]))
+            overall_rmse = torch.sqrt(torch.mean(squared_error))
             
             print(f"Truth Mean: {truth_mean}")
             print(f"Prediction Mean: {pred_mean}")
             print(f"Error: {error_mean}")
-            print(f"Relative Error: {rel_error_mean}")
-            print(f"Relative Error StdDev: {rel_error_std}")
-
+            print(f"RMSE per dimension: {rmse}")
+            print(f"Position RMSE: {position_rmse:.6f}")
+            print(f"Velocity RMSE: {velocity_rmse:.6f}")
+            print(f"Attitude RMSE: {attitude_rmse:.6f}")
+            print(f"Angular Velocity RMSE: {angular_vel_rmse:.6f}")
+            print(f"Overall RMSE: {overall_rmse:.6f}")
+        
             if save_to_table:
                 print("Saving to table!")
                 # Convert tensor to list for JSON serialization
@@ -224,8 +240,12 @@ class WorldModelLearning():
                     "truth_mean": truth_mean.cpu().tolist(),
                     "pred_mean": pred_mean.cpu().tolist(),
                     "error_mean": error_mean.cpu().tolist(),
-                    "rel_error_mean": rel_error_mean.cpu().tolist(),
-                    "rel_error_std": rel_error_std.cpu().tolist()
+                    "rmse_per_dim": rmse.cpu().tolist(),
+                    "position_rmse": position_rmse.item(),
+                    "velocity_rmse": velocity_rmse.item(),
+                    "attitude_rmse": attitude_rmse.item(),
+                    "angular_vel_rmse": angular_vel_rmse.item(),
+                    "overall_rmse": overall_rmse.item()
                 }
 
                 json_file = os.path.join(os.getcwd(), "experiment_results.json")
@@ -253,7 +273,7 @@ class WorldModelLearning():
     def train_step(self):
         self.optimizer.zero_grad()
         if self.buffer.get_len() > self.config.replay_buffer.start_learning:
-            dts, states, actions = self.buffer.sample(self.config.training.batch_size, self.seq_scheduler.current_length)
+            dts, states, actions = self.buffer.sample(self.config.training.batch_size, 2)
             pred_traj = self.model.rollout(dts, states[:,0,:], actions)
 
             loss = self.model.loss(
@@ -264,7 +284,7 @@ class WorldModelLearning():
             loss.backward()
             torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=50.0)
             self.optimizer.step()
-            self.seq_scheduler.step(loss.item())
+            # self.seq_scheduler.step(loss.item())
 
             if self.batch_count % 25 == 0:
                 self.validate()
