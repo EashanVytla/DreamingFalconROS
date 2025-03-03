@@ -50,7 +50,7 @@ force_model:
 training: 
   num_epochs: 64
   batch_size: 64
-  lr: 0.0003
+  lr: 0.005
   min_lr: 0.0075
   init_seq_len: 2
   max_seq_len: 2
