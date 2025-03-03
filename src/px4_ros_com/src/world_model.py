@@ -124,6 +124,13 @@ class WorldModel(nn.Module):
         seq_len = act_inps.shape[1]
         for i in range(1, seq_len):
             pred = self.predict(dts[:, i].unsqueeze(-1), x_roll[i-1], act_inps[:, i-1, :])
+
+            # if self.norm_ranges.norm:
+            #     pred_norm = torch.zeros((pred.shape[0], pred.shape[1], 6), dtype=torch.float32, device=self.device)
+            #     pred_norm[:, 0:3] = utils.normalize(pred[:, :, 3:6], self.norm_ranges.velo_min, self.norm_ranges.velo_max)
+            #     pred_norm[:, 3:6] = utils.normalize(pred[:, :, 6:9], self.norm_ranges.omega_min, self.norm_ranges.omega_max)
+            #     pred_norm[:, 6:9] = utils.normalize(pred[:, :, 9:12], self.norm_ranges.omega_min, self.norm_ranges.omega_max)
+                
             if torch.max(pred).item() > 1000 or torch.min(pred).item() < -1000:
                 print(f"Warning: Large values detected at step {i}: {torch.max(pred).item()}")
 
@@ -195,11 +202,12 @@ class WorldModel(nn.Module):
         inp = torch.cat((actuator_input, x_t[:, 3:12]), dim=1)
         forces_norm = self.model(inp)
 
-        # x_t_dn = torch.zeros_like(x_t)
-        # x_t_dn[:, 0:3] = x_t[:, 0:3]
-        # x_t_dn[:, 3:6] = utils.denormalize(x_t[:, 3:6], self.norm_config.velo_min, self.norm_config.velo_max)
-        # x_t_dn[:, 6:9] = utils.denormalize(x_t[:, 6:9], self.norm_config.euler_min, self.norm_config.euler_max)
-        # x_t_dn[:, 9:12] = utils.denormalize(x_t[:, 9:12], self.norm_config.omega_min, self.norm_config.omega_max)
+        if self.norm_config.norm:
+            x_t_dn = torch.zeros_like(x_t)
+            x_t_dn[:, 0:3] = x_t[:, 0:3]
+            x_t_dn[:, 3:6] = utils.denormalize(x_t[:, 3:6], self.norm_config.velo_min, self.norm_config.velo_max)
+            x_t_dn[:, 6:9] = utils.denormalize(x_t[:, 6:9], self.norm_config.euler_min, self.norm_config.euler_max)
+            x_t_dn[:, 9:12] = utils.denormalize(x_t[:, 9:12], self.norm_config.omega_min, self.norm_config.omega_max)
 
         forces = torch.zeros_like(forces_norm)
         forces[:, 0:2] = utils.denormalize(forces_norm[:, 0:2], self.norm_config.fxy_min, self.norm_config.fxy_max)
@@ -207,9 +215,7 @@ class WorldModel(nn.Module):
         forces[:, 3:5] = utils.denormalize(forces_norm[:, 3:5], self.norm_config.mxy_min, self.norm_config.mxy_max)
         forces[:, 5] = utils.denormalize(forces_norm[:, 5], self.norm_config.mz_min, self.norm_config.mz_max)
 
-        # print(f"Forces: {torch.mean(forces, dim=0)}")
-
-        return self.six_dof(x_t, dt, forces)
+        return self.six_dof(x_t_dn if self.norm_config.norm else x_t, dt, forces)
     
     def loss(self, pred, truth):
         huber_loss = F.smooth_l1_loss(pred, truth, reduction='none', beta=self._beta)

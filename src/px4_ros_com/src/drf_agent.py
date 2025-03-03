@@ -195,20 +195,25 @@ class WorldModelLearning():
             dts, states, actions = self.buffer.sample(batch_size, 32)
             pred_traj = self.model.rollout(dts, states[:,0,:], actions)
 
-            # x_dn = torch.zeros_like(states)
-            # x_dn[:, :, 0:3] = states[:, :, 0:3]
-            # x_dn[:, :, 3:6] = denormalize(states[:, :, 3:6], self.norm_ranges.velo_min, self.norm_ranges.velo_max)
-            # x_dn[:, :, 6:9] = denormalize(states[:, :, 6:9], self.norm_ranges.euler_min, self.norm_ranges.euler_max)
-            # x_dn[:, :, 9:12] = denormalize(states[:, :, 9:12], self.norm_ranges.omega_min, self.norm_ranges.omega_max)
+            if self.norm_ranges.norm:
+                states[:, :, 3:6] = denormalize(states[:, :, 3:6], self.norm_ranges.velo_min, self.norm_ranges.velo_max)
+                states[:, :, 6:9] = denormalize(states[:, :, 6:9], self.norm_ranges.euler_min, self.norm_ranges.euler_max)
+                states[:, :, 9:12] = denormalize(states[:, :, 9:12], self.norm_ranges.omega_min, self.norm_ranges.omega_max)
+
+            abs_error = torch.abs(pred_traj[:, 1:, :] - states[:, 1:, :])
+            rel_error = abs_error / (torch.abs(states[:, 1:, :]) + 1e-8)
 
             truth_mean = torch.mean(states[:, 1:, :], dim=(0,1))
             pred_mean = torch.mean(pred_traj[:, 1:, :], dim=(0,1))
-            error_mean = torch.mean(pred_traj[:, 1:, :] - states[:, 1:, :], dim=(0,1))
-            rel_error_mean = torch.mean(torch.abs(pred_traj[:, 1:, :] - states[:, 1:, :]) / (torch.abs(states[:, 1:, :]) + 1e-8), dim=(0,1))
+            error_mean = torch.mean(abs_error, dim=(0,1))
+            rel_error_mean = torch.mean(rel_error, dim=(0,1))
+            rel_error_std = torch.std(rel_error, dim=(0,1))
+            
             print(f"Truth Mean: {truth_mean}")
             print(f"Prediction Mean: {pred_mean}")
             print(f"Error: {error_mean}")
             print(f"Relative Error: {rel_error_mean}")
+            print(f"Relative Error StdDev: {rel_error_std}")
 
             if save_to_table:
                 print("Saving to table!")
@@ -219,7 +224,8 @@ class WorldModelLearning():
                     "truth_mean": truth_mean.cpu().tolist(),
                     "pred_mean": pred_mean.cpu().tolist(),
                     "error_mean": error_mean.cpu().tolist(),
-                    "rel_error_mean": rel_error_mean.cpu().tolist()
+                    "rel_error_mean": rel_error_mean.cpu().tolist(),
+                    "rel_error_std": rel_error_std.cpu().tolist()
                 }
 
                 json_file = os.path.join(os.getcwd(), "experiment_results.json")
@@ -250,9 +256,6 @@ class WorldModelLearning():
             dts, states, actions = self.buffer.sample(self.config.training.batch_size, 2)
             pred_traj = self.model.rollout(dts, states[:,0,:], actions)
 
-            # pred_traj_norm = torch.zeros((pred_traj.shape[0], pred_traj.shape[1], 6), dtype=torch.float32, device=self.device)
-            # pred_traj_norm[:, :, 0:3] = normalize(pred_traj[:, :, 3:6], self.norm_ranges.velo_min, self.norm_ranges.velo_max)
-            # pred_traj_norm[:, :, 3:6] = normalize(pred_traj[:, :, 9:12], self.norm_ranges.omega_min, self.norm_ranges.omega_max)
             loss = self.model.loss(
                 torch.concat((pred_traj[:,1:,3:6], pred_traj[:,1:,9:12]), dim=-1), 
                 torch.concat((states[:,1:,3:6], states[:,1:, 9:12]), dim=-1)
