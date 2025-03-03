@@ -1,5 +1,3 @@
-# Higher Sequence Length higher learning rate
-
 device: cpu
 timeout: 1200
 
@@ -27,22 +25,22 @@ normalization:
   omega_max: 1.0
   act_min: 150
   act_max: 1000
-  fxy_min: -2.5
-  fxy_max: 2.5
-  fz_min: -30
-  fz_max: 30
+  fxy_min: -10
+  fxy_max: 10
+  fz_min: -20 #z = 15 xy = 8
+  fz_max: 20
   mxy_min: -1.0
   mxy_max: 1.0
   mz_min: -0.36
   mz_max: 0.36
 
 replay_buffer:
-  capacity: 2000
+  capacity: 10000
   start_learning: 1000
 
 force_model:
   hidden_layers: 2
-  hidden_size: 256
+  hidden_size: 512
   output_dim: 6
   input_dim: 13
   state_dim: 12
@@ -52,11 +50,11 @@ force_model:
 training: 
   num_epochs: 64
   batch_size: 64
-  lr: 0.001
+  lr: 0.0003
   min_lr: 0.0075
   init_seq_len: 2
-  max_seq_len: 32
-  seq_patience: 32
+  max_seq_len: 2
+  seq_patience: 64
   seq_sch_thresh: 0.01
   loss_scaler: 1280
   beta: 0.2
