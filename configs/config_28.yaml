@@ -1,4 +1,4 @@
-# CHANGE FORM NORM WITH HIGHER BATCH SIZE AND BIGGER MODEL
+# Higher Sequence Length higher learning rate
 
 device: cpu
 timeout: 1200
@@ -23,26 +23,26 @@ normalization:
   velo_max: 10
   euler_min: -1.0
   euler_max: 1.0
-  omega_min: -0.785
-  omega_max: 0.785
+  omega_min: -1.0
+  omega_max: 1.0
   act_min: 150
   act_max: 1000
-  fxy_min: -38
-  fxy_max: 38
-  fz_min: -50
-  fz_max: 50
-  mxy_min: -4.64
-  mxy_max: 4.64
+  fxy_min: -2.5
+  fxy_max: 2.5
+  fz_min: -30
+  fz_max: 30
+  mxy_min: -1.0
+  mxy_max: 1.0
   mz_min: -0.36
   mz_max: 0.36
 
 replay_buffer:
-  capacity: 10000
+  capacity: 2000
   start_learning: 1000
 
 force_model:
   hidden_layers: 2
-  hidden_size: 512
+  hidden_size: 256
   output_dim: 6
   input_dim: 13
   state_dim: 12
@@ -51,12 +51,12 @@ force_model:
 
 training: 
   num_epochs: 64
-  batch_size: 128
-  lr: 0.0003
+  batch_size: 64
+  lr: 0.001
   min_lr: 0.0075
   init_seq_len: 2
-  max_seq_len: 2
-  seq_patience: 64
+  max_seq_len: 32
+  seq_patience: 32
   seq_sch_thresh: 0.01
   loss_scaler: 1280
   beta: 0.2

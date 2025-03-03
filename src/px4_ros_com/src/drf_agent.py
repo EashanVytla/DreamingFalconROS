@@ -253,7 +253,7 @@ class WorldModelLearning():
     def train_step(self):
         self.optimizer.zero_grad()
         if self.buffer.get_len() > self.config.replay_buffer.start_learning:
-            dts, states, actions = self.buffer.sample(self.config.training.batch_size, 2)
+            dts, states, actions = self.buffer.sample(self.config.training.batch_size, self.seq_scheduler.current_length)
             pred_traj = self.model.rollout(dts, states[:,0,:], actions)
 
             loss = self.model.loss(
