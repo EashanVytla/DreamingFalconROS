@@ -1,5 +1,7 @@
 FROM arm64v8/ros:humble-ros-base-jammy
 
+ENV CXXFLAGS="-std=c++14"
+
 # Install dependencies and Python packages
 RUN apt-get update && apt-get install -y \
     python3-pip \
