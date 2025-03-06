@@ -35,6 +35,16 @@ class MLP(nn.Module):
     
     def forward(self, x):
         return self.network(x)
+    
+class BehaviorModel(nn.Module):
+    def __init__(self, config, device):
+        super(BehaviorModel, self).__init__()
+
+        hidden_dims = [config.critic_model.hidden_size] * config.critic_model.hidden_layers
+        self.critic = MLP(config.critic_model.input_dim, hidden_dims, config.critic_model.output_dim, config.critic_model.activation)
+
+        hidden_dims = [config.actor_model.hidden_size] * config.actor_model.hidden_layers
+        self.actor = MLP(config.actor_model.input_dim, hidden_dims, config.actor_model.output_dim, config.actor_model.activation)
 
 class WorldModel(nn.Module):
     def __init__(self, config, device):

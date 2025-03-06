@@ -47,6 +47,20 @@ force_model:
   action_dim: 4
   activation: relu
 
+critic_model:
+  hidden_layers: 2
+  hidden_size: 256
+  output_dim: 1
+  input_dim: 12
+  activation: relu
+
+actor_model:
+  hidden_layers: 2
+  hidden_size: 256
+  output_dim: 4
+  input_dim: 12
+  activation: relu
+
 training: 
   num_epochs: 64
   batch_size: 64

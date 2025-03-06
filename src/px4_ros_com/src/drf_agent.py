@@ -10,7 +10,7 @@ from replay_buffer import ReplayBuffer
 import yaml
 from torch import multiprocessing as mp
 from torch.utils.tensorboard import SummaryWriter
-from world_model import WorldModel
+from src.models import WorldModel
 from sequence_scheduler import AdaptiveSeqLengthScheduler
 from message_filters import Subscriber, ApproximateTimeSynchronizer
 import os
