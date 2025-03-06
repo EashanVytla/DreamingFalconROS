@@ -1,49 +1,123 @@
 Bootstrap: docker
-From: osrf/ros:humble-desktop-full-jammy
+From: px4io/px4-dev-base-jammy:2024-05-18
 
 %post
     export DEBIAN_FRONTEND=noninteractive
 
-    apt-get update && apt-get install -y libqt5core5a
+    # Set up locales
+    locale
+    apt update && apt install -y locales
+    locale-gen en_US en_US.UTF-8
+    update-locale LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8
+    export LANG=en_US.UTF-8
+    locale
 
-    # Upgrade and install ROS 2 + dependencies
-    apt-get update && apt-get upgrade -y
-    apt-get install -y \
-        lsb-release \
-        gnupg \
-        wget \
-        git \
+    # Install basic dependencies
+    apt install -y software-properties-common
+    add-apt-repository -y universe
+
+    # Set up ROS2 repository
+    apt update && apt install curl -y
+    curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key -o /usr/share/keyrings/ros-archive-keyring.gpg
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros2/ubuntu $(. /etc/os-release && echo $UBUNTU_CODENAME) main" | tee /etc/apt/sources.list.d/ros2.list > /dev/null
+
+    # Installing venv
+    apt update && apt install -y \
+        python3-venv \
+        python3-pip
+
+    apt update && apt install -y \
+        ros-humble-desktop \
+        ros-humble-ros-base \
+        ros-humble-gazebo-ros-pkgs \
+        ros-humble-gazebo-ros2-control \
+        ros-humble-xacro \
+        ros-humble-rqt \
+        python3-colcon-common-extensions
+
+    # Set up Gazebo repository
+    wget https://packages.osrfoundation.org/gazebo.gpg -O /usr/share/keyrings/pkgs-osrf-archive-keyring.gpg
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/pkgs-osrf-archive-keyring.gpg] http://packages.osrfoundation.org/gazebo/ubuntu-stable $(. /etc/os-release && echo $UBUNTU_CODENAME) main" | tee /etc/apt/sources.list.d/gazebo-stable.list > /dev/null
+
+    # Install ROS2 development tools
+    apt update && apt install -y \
+        python3-flake8-docstrings \
         python3-pip \
-        build-essential \
-        cmake \
-        ninja-build \
-        protobuf-compiler \
+        python3-pytest-cov \
+        ros-dev-tools \
+        python3-flake8-blind-except \
+        python3-flake8-builtins \
+        python3-flake8-class-newline \
+        python3-flake8-comprehensions \
+        python3-flake8-deprecated \
+        python3-flake8-import-order \
+        python3-flake8-quotes \
+        python3-pytest-repeat \
+        python3-pytest-rerunfailures
+
+    apt update && apt install -y \
+        libgz-transport12-dev \
+        libqt5core5a qtbase5-dev libqt5gui5 libqt5widgets5 libqt5opengl5 \
+        software-properties-common \
+
+    # Install Gazebo and related packages
+    apt install -y \
+        ant \
+        binutils \
+        bc \
+        dirmngr \
+        gz-garden \
+        gstreamer1.0-plugins-bad \
+        gstreamer1.0-plugins-base \
+        gstreamer1.0-plugins-good \
+        gstreamer1.0-plugins-ugly \
         libeigen3-dev \
-        libgtest-dev \
-        python3-colcon-common-extensions \
-        python3-rosdep \
-        python3-vcstool \
+        libgstreamer-plugins-base1.0-dev \
+        libimage-exiftool-perl \
         libopencv-dev \
-        libyaml-cpp-dev && \
-        rm -rf /var/lib/apt/lists/*
+        libxml2-utils \
+        mesa-utils \
+        protobuf-compiler \
+        x-window-system
 
-    # Source ROS setup
-    echo "source /opt/ros/humble/setup.bash" >> ~/.bashrc
+    # Install JSBSim
+    wget https://github.com/JSBSim-Team/jsbsim/releases/download/v1.1.1a/JSBSim-devel_1.1.1-134.focal.amd64.deb
+    dpkg -i JSBSim-devel_1.1.1-134.focal.amd64.deb
 
-    # Create workspace and clone PX4
-    mkdir -p /workspace && \
-    cd /workspace && \
-    git clone --recursive https://github.com/EashanVytla/PX4-Autopilot-Appt.git PX4-Autopilot && \
-    cd PX4-Autopilot && \
-    bash Tools/setup/ubuntu.sh
+    # Install MicroXRCEAgent
+    git clone https://github.com/eProsima/Micro-XRCE-DDS-Agent.git
+    cd Micro-XRCE-DDS-Agent
+    mkdir build
+    cd build
+    cmake ..
+    make
+    make install
+    ldconfig /usr/local/lib/
 
-    pip3 install --user kconfiglib jsonschema pyros-genmsg future
+    cd ../..
+    rm -rf Micro-XRCE-DDS-Agent
+
+    # Clean up
+    apt-get -y autoremove
+    apt-get clean autoclean
+    # Only remove package-related files
+    rm -rf /var/lib/apt/lists/* 
+    # Remove the downloaded JSBSim deb file
+    rm -f JSBSim-devel_1.1.1-134.focal.amd64.deb
 
 %environment
+    # ROS2 environment
     source /opt/ros/humble/setup.bash
     export PATH="/workspace/PX4-Autopilot:$PATH"
     export WORKSPACE_DIR=/workspace
-    export LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu:/.singularity.d/libs
+    # export LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu
+
+    # Gazebo CMake path
+    export CMAKE_PREFIX_PATH=/usr/lib/x86_64-linux-gnu/cmake/gz-transport12-all
+    
+    # QT and Java environment variables
+    export QT_X11_NO_MITSHM=1
+    export JAVA_TOOL_OPTIONS=-Dfile.encoding=UTF8
 
 %runscript
     cd /workspace

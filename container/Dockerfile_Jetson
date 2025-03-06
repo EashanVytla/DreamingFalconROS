@@ -1,4 +1,4 @@
-FROM osrf/ros:humble-desktop
+FROM arm64v8/ros:humble-ros-base-jammy
 
 # Install dependencies and Python packages
 RUN apt-get update && apt-get install -y \
