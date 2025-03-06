@@ -15,7 +15,7 @@ RUN pip install --no-cache-dir -U empy==3.3.4 pyros-genmsg setuptools
 
 # Clone and build Micro-XRCE-DDS-Agent
 WORKDIR /tmp
-RUN git clone -b v2.4.2 https://github.com/eProsima/Micro-XRCE-DDS-Agent.git && \
+RUN git clone -b v2.4.3 https://github.com/eProsima/Micro-XRCE-DDS-Agent.git && \
     cd Micro-XRCE-DDS-Agent && \
     mkdir build && \
     cd build && \
