@@ -19,7 +19,7 @@ echo "CONFIG ${CONFIG_INDEX}!"
 # Directory setup
 WORKSPACE_DIR="${HOME}/workspace"
 CONFIG_DIR="${WORKSPACE_DIR}/DreamingFalconROS/configs"
-CONTAINER="${WORKSPACE_DIR}/DreamingFalconROS/container/dreamingfalcon.sif"
+CONTAINER="${WORKSPACE_DIR}/DreamingFalconROS/containers/osc/dreamingfalcon.sif"
 CONFIG_FILE="${CONFIG_DIR}/config_${CONFIG_INDEX}.yaml"
 
 # Check if config file exists
@@ -29,7 +29,7 @@ if [ ! -f "$CONFIG_FILE" ]; then
 fi
 
 # Make the script executable
-chmod +x ${WORKSPACE_DIR}/DreamingFalconROS/container/run_inside_container.sh
+chmod +x ${WORKSPACE_DIR}/DreamingFalconROS/containers/osc/run_inside_container.sh
 
 # Run the container with the script and pass the config file
 apptainer exec \
@@ -37,4 +37,4 @@ apptainer exec \
     --nv \
     -B ${WORKSPACE_DIR}:/workspace \
     ${CONTAINER} \
-    /bin/bash -c "/workspace/DreamingFalconROS/container/run_inside_container.sh configs/config_${CONFIG_INDEX}.yaml"
+    /bin/bash -c "/workspace/DreamingFalconROS/containers/osc/run_inside_container.sh configs/config_${CONFIG_INDEX}.yaml"

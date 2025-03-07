@@ -29,5 +29,11 @@ RUN git clone -b v2.4.3 https://github.com/eProsima/Micro-XRCE-DDS-Agent.git && 
 # Set working directory for the container
 WORKDIR /ros2_ws
 
+RUN chmod +x /entrypoint.sh
+
 # Source ROS environment in bashrc
 RUN echo "source /opt/ros/humble/setup.bash" >> /root/.bashrc
+
+# Set the entrypoint
+ENTRYPOINT ["/entrypoint.sh"]
+CMD ["bash"]

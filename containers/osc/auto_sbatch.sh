@@ -15,8 +15,8 @@ COMPLETED_DIR="${WORKSPACE_DIR}/DreamingFalconROS/configs/completed"
 mkdir -p "${COMPLETED_DIR}"
 
 # Make scripts executable
-chmod +x ${WORKSPACE_DIR}/DreamingFalconROS/container/hp_tuning.sh
-chmod +x ${WORKSPACE_DIR}/DreamingFalconROS/container/run_inside_container.sh
+chmod +x ${WORKSPACE_DIR}/DreamingFalconROS/containers/osc/hp_tuning.sh
+chmod +x ${WORKSPACE_DIR}/DreamingFalconROS/containers/osc/run_inside_container.sh
 
 # Check if configs directory exists
 if [ ! -d "$CONFIG_DIR" ]; then
@@ -46,7 +46,7 @@ for config_file in ${CONFIG_DIR}/config_*.yaml; do
         echo "Submitting job for config_${config_index}.yaml"
         
         # Submit the job and capture the job ID
-        job_id=$(sbatch --parsable ${WORKSPACE_DIR}/DreamingFalconROS/container/hp_tuning.sh "$config_index")
+        job_id=$(sbatch --parsable ${WORKSPACE_DIR}/DreamingFalconROS/containers/osc/hp_tuning.sh "$config_index")
         
         echo "Submitted job ${job_id} for config_${config_index}.yaml"
         
