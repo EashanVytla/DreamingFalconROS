@@ -10,8 +10,10 @@ RUN apt-get update && apt-get install -y \
     build-essential \
     && rm -rf /var/lib/apt/lists/*
 
+RUN python3 -m pip install --upgrade pip
+
 # Install Python dependencies
-RUN pip install --no-cache-dir -U empy==3.3.4 pyros-genmsg setuptools
+RUN pip install --no-cache-dir -U empy==3.3.4 pyros-genmsg setuptools==65.5.1
 
 # Clone and build Micro-XRCE-DDS-Agent
 WORKDIR /tmp
