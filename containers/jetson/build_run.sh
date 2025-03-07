@@ -14,7 +14,7 @@ echo -e "${YELLOW}Building ROS packages...${NC}"
 colcon build --symlink-install
 
 # Source workspace
-source /ros2_ws/install/setup.bash
+source /ros2_ws/DreamingFalconROS/install/setup.bash
 
 # Launch application
 echo -e "${GREEN}Build complete. Starting ROS application...${NC}"

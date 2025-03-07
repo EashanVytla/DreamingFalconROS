@@ -1,9 +1,9 @@
 #!/bin/bash
 
-IMAGE_NAME="dreaming_falcon_jetson"
-CONTAINER_NAME="dreaming_falcon_container"
-HOST_DIR="/home/eashan/DreamingFalconROS"
-CONTAINER_SRC_DIR="/ros2_ws/src/dreaming_falcon"
+IMAGE_NAME="dreamer_docker"
+CONTAINER_NAME="dreamer_container"
+HOST_DIR="/home/eashan/ros2_ws"
+CONTAINER_SRC_DIR="/ros2_ws"
 
 docker run -it \
     --name "$CONTAINER_NAME" \
@@ -11,4 +11,4 @@ docker run -it \
     --privileged \
     -v "$HOST_DIR":"$CONTAINER_SRC_DIR" \
     "$IMAGE_NAME" \
-    /ros2_ws/src/dreaming_falcon/containers/jetson/build_and_run.sh
+    /ros2_ws/DreamingFalconROS/containers/jetson/build_run.sh
