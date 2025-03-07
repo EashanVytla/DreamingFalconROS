@@ -29,6 +29,10 @@ RUN git clone -b v2.4.3 https://github.com/eProsima/Micro-XRCE-DDS-Agent.git && 
 # Set working directory for the container
 WORKDIR /ros2_ws
 
+# Copy the entrypoint script from host to container
+COPY entrypoint.sh /entrypoint.sh
+
+# Make entrypoint script executable
 RUN chmod +x /entrypoint.sh
 
 # Source ROS environment in bashrc
