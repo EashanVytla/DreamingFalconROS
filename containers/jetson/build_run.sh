@@ -7,7 +7,7 @@ YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
 # Navigate to workspace
-cd /ros2_ws
+cd /ros2_ws/DreamingFalconROS
 
 # Build packages
 echo -e "${YELLOW}Building ROS packages...${NC}"
