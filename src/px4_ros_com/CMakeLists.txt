@@ -12,7 +12,7 @@ if(NOT CMAKE_CXX_STANDARD)
 endif()
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-	add_compile_options(-Wall -Wextra -Wpedantic)
+	add_compile_options(-Wall -Wextra -Wpedantic -Wno-class-memaccess)
 endif()
 
 # find dependencies
@@ -122,7 +122,7 @@ ament_python_install_package(${PROJECT_NAME})
 install(FILES
   src/utils.py
   src/replay_buffer.py
-  src/world_model.py
+  src/models.py
   src/rk4_solver.py
   src/sequence_scheduler.py
   DESTINATION lib/${PROJECT_NAME}
