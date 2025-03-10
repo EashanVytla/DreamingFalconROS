@@ -28,6 +28,12 @@ RUN git clone -b v2.4.3 https://github.com/eProsima/Micro-XRCE-DDS-Agent.git && 
     cd / && \
     rm -rf /tmp/Micro-XRCE-DDS-Agent
 
+# Install eigen
+RUN apt update && apt install -y libeigen3-dev
+
+COPY requirements.txt /requirements.txt
+RUN pip install --upgrade pip && pip install -r /requirements.txt
+
 # Set working directory for the container
 WORKDIR /ros2_ws
 

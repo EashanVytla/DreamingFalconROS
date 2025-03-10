@@ -11,4 +11,4 @@ docker run -it \
     --privileged \
     -v "$HOST_DIR":"$CONTAINER_SRC_DIR" \
     "$IMAGE_NAME" \
-    /ros2_ws/DreamingFalconROS/containers/jetson/build_run.sh
+    /ros2_ws/DreamingFalconROS/containers/jetson/launch.sh
