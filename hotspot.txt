@@ -1,0 +1,5 @@
+Turn off hotspot:
+nmcli connection down my-hotspot
+
+raspi hotspot static ip:
+ssh eashan@192.168.1.1

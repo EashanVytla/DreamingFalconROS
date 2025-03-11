@@ -53,6 +53,7 @@ critic_model:
   output_dim: 1
   input_dim: 12
   activation: relu
+  discount_factor: 0.997
 
 actor_model:
   hidden_layers: 2
