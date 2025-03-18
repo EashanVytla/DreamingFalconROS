@@ -122,7 +122,7 @@ ament_python_install_package(${PROJECT_NAME})
 install(FILES
   src/utils.py
   src/replay_buffer.py
-  src/world_model.py
+  src/models.py
   src/rk4_solver.py
   src/sequence_scheduler.py
   DESTINATION lib/${PROJECT_NAME}

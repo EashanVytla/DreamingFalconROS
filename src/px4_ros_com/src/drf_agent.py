@@ -10,7 +10,7 @@ from replay_buffer import ReplayBuffer
 import yaml
 from torch import multiprocessing as mp
 from torch.utils.tensorboard import SummaryWriter
-from src.models import WorldModel
+from models import WorldModel, Actor, Critic
 from sequence_scheduler import AdaptiveSeqLengthScheduler
 from message_filters import Subscriber, ApproximateTimeSynchronizer
 import os
@@ -18,6 +18,7 @@ from scipy.spatial.transform import Rotation as R
 import time
 import re
 from datetime import datetime
+import copy
 import json
 
 class Storage(Node):
@@ -109,7 +110,7 @@ class Storage(Node):
         self.buffer.add(self.state, self.action, dt)
         self.last_timestamp = current_timestamp
 
-class WorldModelLearning():
+class Learner():
     def __init__(self, buffer, config_file):
         self.buffer = buffer
 
@@ -127,13 +128,13 @@ class WorldModelLearning():
         self.device = self.config.device
         self.norm_ranges = self.config.normalization
 
-        self.model = WorldModel(self.config, torch.device(self.config.device)).to(self.config.device)
+        self.world_model = WorldModel(self.config, torch.device(self.config.device)).to(self.config.device)
 
-        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.config.training.lr, weight_decay=self.config.training.weight_decay)
+        self.wm_optimizer = torch.optim.Adam(self.world_model.parameters(), lr=self.config.training.lr, weight_decay=self.config.training.weight_decay)
 
         if self.config.training.cos_lr:
             lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-                self.optimizer, T_max=25, eta_min=self.config.training.min_lr, verbose=True
+                self.wm_optimizer, T_max=25, eta_min=self.config.training.min_lr, verbose=True
             )
 
         self.writer = SummaryWriter(self.log_directory)
@@ -143,15 +144,23 @@ class WorldModelLearning():
             max_length=self.config.training.max_seq_len, 
             patience=self.config.training.seq_patience, 
             threshold=self.config.training.seq_sch_thresh, 
-            model=self.model, 
+            model=self.world_model, 
             config=self.config
         )
 
         self.batch_count = 0
+
+        self.critic = Critic(self.config).to(device=self.config.device)
+        self.critic_prime = copy.deepcopy(self.critic)
+
+        self.actor = Actor(self.config).to(device=self.config.device)
+
+        self.actor_optimizer = torch.optim.Adam(self.actor.parameters(), lr=self.config.behvaior_learning.actor_lr)
+        self.critic_optimizer = torch.optim.Adam(self.critic.parameters(), lr=self.config.behvaior_learning.critic_lr)
         
     def compute_gradient_norm(self):
         total_norm = 0
-        for p in self.model.parameters():
+        for p in self.world_model.parameters():
             if p.grad is not None:
                 param_norm = p.grad.detach().data.norm(2)
                 total_norm += param_norm.item() ** 2
@@ -160,22 +169,22 @@ class WorldModelLearning():
 
     def compute_weight_norm(self):
         total_norm = 0
-        for p in self.model.parameters():
+        for p in self.world_model.parameters():
             param_norm = p.data.norm(2)
             total_norm += param_norm.item() ** 2
         total_norm = total_norm ** 0.5
         return total_norm
 
     def print_gradient_norms(self):
-        for name, param in self.model.named_parameters():
+        for name, param in self.world_model.named_parameters():
             if param.grad is not None:
                 grad_norm = param.grad.norm().item()
                 param_norm = param.data.norm().item()
                 print(f"{name:30s} | grad norm: {grad_norm:.2e} | param norm: {param_norm:.2e}")
     
-    def save_model(self):
+    def save_wm(self):
         state = {
-            "state_dict": self.model.state_dict()
+            "state_dict": self.world_model.state_dict()
         }
 
         os.makedirs(self.model_directory, exist_ok=True)
@@ -193,7 +202,7 @@ class WorldModelLearning():
                 batch_size = 128
             print("Validating...")
             dts, states, actions = self.buffer.sample(batch_size, 32)
-            pred_traj = self.model.rollout(dts, states[:,0,:], actions)
+            pred_traj = self.world_model.rollout(dts, states[:,0,:], actions)
 
             if self.norm_ranges.norm:
                 states[:, :, 3:6] = denormalize(states[:, :, 3:6], self.norm_ranges.velo_min, self.norm_ranges.velo_max)
@@ -270,20 +279,49 @@ class WorldModelLearning():
                 except Exception as e:
                     print(f"Error saving results: {e}")
 
-    def train_step(self):
-        self.optimizer.zero_grad()
+    def beh_train_step(self):
+        self.actor_optimizer.zero_grad()
+        self.critic_optimizer.zero_grad()
+        _, states, _ = self.buffer.sample(self.config.behvaior_learning.batch_size, 1)
+
+        traj = [states[:,0,:]]
+        for t in range(self.config.behavior_learning.horizon):
+            act = self.actor(traj[t])
+            act_pwm = denormalize(act, self.norm_ranges.act_min, self.norm_ranges.act_max)
+
+        v = [self.critic_copy(traj[len(traj)-1])]
+        for t in range(len(traj)-2, -1, -1):
+            v_t = self.world_model.compute_reward(traj[t]) + \
+                    ((1 - self.config.behavior_learning.lambda_val) * self.critic_copy(traj[t+1]) + \
+                    self.config.behavior_learning.lambda_val * v[-1])
+            v.append(v_t)
+        v.reverse()
+        lambda_val = torch.stack(v, dim=1)
+        
+        critic_val = torch.stack([self.critic(traj[x]) for x in range(len(traj))], dim=1)
+        critic_loss = torch.square(critic_val - lambda_val.detach()).sum(1).mean()
+
+        critic_loss.backward(inputs=[param for param in self.critic.parameters()])
+            
+
+        # Compute the actor loss
+
+        # Run the optimizer step
+
+    def wm_train_step(self):
+        self.wm_optimizer.zero_grad()
         if self.buffer.get_len() > self.config.replay_buffer.start_learning:
             dts, states, actions = self.buffer.sample(self.config.training.batch_size, 2)
-            pred_traj = self.model.rollout(dts, states[:,0,:], actions)
+            pred_traj = self.world_model.rollout(dts, states[:,0,:], actions)
 
-            loss = self.model.loss(
+            loss = self.world_model.loss(
                 torch.concat((pred_traj[:,1:,3:6], pred_traj[:,1:,9:12]), dim=-1), 
                 torch.concat((states[:,1:,3:6], states[:,1:, 9:12]), dim=-1)
             )
 
             loss.backward()
-            torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=50.0)
-            self.optimizer.step()
+            torch.nn.utils.clip_grad_norm_(self.world_model.parameters(), max_norm=50.0)
+            self.wm_optimizer.step()
             # self.seq_scheduler.step(loss.item())
 
             if self.batch_count % 25 == 0:
@@ -298,23 +336,23 @@ class WorldModelLearning():
         else:
             print(f"Not enough data yet: {self.buffer.get_len()}")
             time.sleep(1.0)
-            
 
 def wm_train_process_fn(buffer, config_file, stop_event):
     try:
-        wm_learner = WorldModelLearning(buffer, config_file)
+        learner = Learner(buffer, config_file)
         while not stop_event.is_set():
-            wm_learner.train_step()
+            learner.wm_train_step()
+            learner.beh_train_step()
     except KeyboardInterrupt:
         print("Training process interrupted")
     except Exception as e:
         print(f"Training error: {e}")
     finally:
-        wm_learner.validate(save_to_table=True)
+        learner.validate(save_to_table=True)
         print("Saving model...")
-        wm_learner.save_model()
-        if 'wm_learner' in locals():
-            wm_learner.close_writer()
+        learner.save_wm()
+        if 'learner' in locals():
+            learner.close_writer()
 
 def main(args=None) -> None:
     print('Waiting 5 seconds before starting...')

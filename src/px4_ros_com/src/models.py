@@ -5,6 +5,7 @@ import utils
 import math
 from rk4_solver import RK4_Solver
 import torch.nn.functional as F
+import copy
 
 class MLP(nn.Module):
     def __init__(self, input_dim, hidden_dims, output_dim, activation='relu'):
@@ -36,15 +37,65 @@ class MLP(nn.Module):
     def forward(self, x):
         return self.network(x)
     
-class BehaviorModel(nn.Module):
-    def __init__(self, config, device):
-        super(BehaviorModel, self).__init__()
-
-        hidden_dims = [config.critic_model.hidden_size] * config.critic_model.hidden_layers
-        self.critic = MLP(config.critic_model.input_dim, hidden_dims, config.critic_model.output_dim, config.critic_model.activation)
+class Actor(torch.nn.Module):
+    def __init__(self, config):
+        super(Actor, self).__init__()
 
         hidden_dims = [config.actor_model.hidden_size] * config.actor_model.hidden_layers
-        self.actor = MLP(config.actor_model.input_dim, hidden_dims, config.actor_model.output_dim, config.actor_model.activation)
+
+        layers = []
+        dims = [config.actor_model.input_dim] + hidden_dims
+        for i in range(1, len(dims)):
+            layers.append(nn.Linear(dims[i-1], dims[i]))
+            layers.append(nn.ReLU())
+        
+        self.shared_layers = nn.ModuleList(layers)
+        self.mu = torch.nn.Linear(dims[-1], config.actor_model.output_dim)
+        self.log_sigma = torch.nn.Linear(dims[-1], config.actor_model.output_dim)
+
+    def forward(self, x_t, deterministic=False, with_logprob=False):
+        out = x_t
+        for layer in self.shared_layers:
+            out = layer(out)
+
+        # --- Start of code adapted from: Physics Informed Model Based RL
+        # Author: Adithya Ramesh
+        # Date: May 14 2023
+        # Source: https://github.com/adi3e08/Physics_Informed_Model_Based_RL/blob/main/models/mbrl.py ---
+
+        mu = self.mu(out)
+        log_sigma = self.log_sigma(out)
+        
+        log_sigma = torch.clamp(log_sigma, min=-20.0, max=2.0)
+        sigma = torch.exp(log_sigma)
+        
+        if deterministic:
+            action = torch.tanh(mu)
+            return action, None
+        
+        dist = torch.distributions.Normal(mu, sigma)
+        x_t = dist.rsample()
+        action = torch.tanh(x_t)
+
+        if with_logprob:
+            log_prob = dist.log_prob(x_t).sum(1)
+            log_prob -= torch.log(torch.clamp(1-action.pow(2), min=1e-6)).sum(1)
+        else:
+            log_prob = None
+    
+        return action, log_prob
+    
+        # --- End of adapted code ---
+    
+class Critic(nn.Module):
+    def __init__(self, config, device):
+        super(Critic, self).__init__()
+
+        hidden_dims = [config.critic_model.hidden_size] * config.critic_model.hidden_layers
+        self.critic = MLP(config.critic_model.input_dim, hidden_dims, config.critic_model.output_dim, config.critic_model.activation).to(device=config.device)
+
+    def loss():
+        pass
 
 class WorldModel(nn.Module):
     def __init__(self, config, device):
@@ -126,6 +177,29 @@ class WorldModel(nn.Module):
         print(f"Actions std: {self.actions_std}")
         print(f"forces mean: {self.forces_mean}")
         print(f"forces std: {self.forces_std}")
+
+    def compute_reward(state, target_state, control_input, tolerance):
+        pos_error = torch.norm(state[:,0:3] - target_state[:,0:3])
+        vel_error = torch.norm(state[:,3:6] - target_state[:,3:6])
+        att_error = torch.norm(state[:,6:9] - target_state[:,6:9])
+        
+        w_p = 1.0   # weight for position error
+        w_v = 0.5   # weight for velocity error
+        w_a = 0.5   # weight for attitude error
+        w_c = 0.1   # weight for control effort
+        
+        # Base reward: negative of weighted error terms
+        reward = -(w_p * pos_error + w_v * vel_error + w_a * att_error)
+        
+        # Penalize high control inputs
+        control_penalty = w_c * torch.norm(control_input)
+        reward -= control_penalty
+        
+        # Bonus if within a tolerance threshold (stability bonus)
+        if pos_error < tolerance and att_error < tolerance:
+            reward += 1.0
+        
+        return reward
 
     def rollout(self, dts, x_t, act_inps):
         x_roll = [x_t]
@@ -228,7 +302,7 @@ class WorldModel(nn.Module):
         # print(torch.max(forces, dim=0))
 
         return self.six_dof(x_t_dn if self.norm_config.norm else x_t, dt, forces)
-    
+
     def loss(self, pred, truth):
         huber_loss = F.smooth_l1_loss(pred, truth, reduction='none', beta=self._beta)
 

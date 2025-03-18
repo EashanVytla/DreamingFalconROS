@@ -48,7 +48,7 @@ force_model:
   activation: relu
 
 critic_model:
-  hidden_layers: 2
+  hidden_layers: 1
   hidden_size: 256
   output_dim: 1
   input_dim: 12
@@ -56,11 +56,17 @@ critic_model:
   discount_factor: 0.997
 
 actor_model:
-  hidden_layers: 2
+  hidden_layers: 1
   hidden_size: 256
   output_dim: 4
   input_dim: 12
   activation: relu
+
+behvaior_learning:
+  critic_lr: 0.0003
+  actor_lr: 0.0003
+  batch_size: 32
+  horizon: 32
 
 training: 
   num_epochs: 64
