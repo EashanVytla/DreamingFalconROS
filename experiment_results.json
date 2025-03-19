@@ -389,6 +389,71 @@
             "attitude_rmse": 0.08189113438129425,
             "angular_vel_rmse": 0.202864870429039,
             "overall_rmse": 0.23505441844463348
+        },
+        {
+            "run_index": 0,
+            "timestamp": "2025-03-18T18:59:46.155392",
+            "truth_mean": [
+                -0.00489049032330513,
+                0.031025508418679237,
+                -8.120233535766602,
+                -0.05001802742481232,
+                0.0060942936688661575,
+                -1.7890217304229736,
+                0.0009201171342283487,
+                -0.0037308435421437025,
+                1.5647832155227661,
+                0.0001647377503104508,
+                -0.008366821333765984,
+                0.008661395870149136
+            ],
+            "pred_mean": [
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN
+            ],
+            "error_mean": [
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN
+            ],
+            "rmse_per_dim": [
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN,
+                NaN
+            ],
+            "position_rmse": NaN,
+            "velocity_rmse": NaN,
+            "attitude_rmse": NaN,
+            "angular_vel_rmse": NaN,
+            "overall_rmse": NaN
         }
     ]
 }

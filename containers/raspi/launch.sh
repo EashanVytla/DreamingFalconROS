@@ -4,6 +4,11 @@
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
+PORT="/dev/ttyAMA0"
+
+# MicroXRCE Agent
+echo "Starting MicroXRCEAgent"
+MicroXRCEAgent serial --dev $PORT -b 921600
 
 # Navigate to workspace
 cd /ros2_ws/DreamingFalconROS
