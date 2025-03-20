@@ -25,6 +25,7 @@ UXRCE_DDS_SYNCT 0
     In gazebo:
 COM_LOW_BAT_ACT 0
 
+ssh eashan@100.127.198.71
 
 Sim model:
 Tools/simulation/gz/models/x500_base/model.sdf
