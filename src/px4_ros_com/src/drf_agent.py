@@ -5,7 +5,7 @@ from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy, DurabilityPolicy
 from px4_msgs.msg import VehicleOdometry, ActuatorOutputs
 import torch
-from utils import quat_to_euler, AttrDict, get_DCM, normalize, denormalize
+from utils import quat_to_euler, AttrDict, get_DCM, normalize, denormalize, unwrap_angle
 from replay_buffer import ReplayBuffer
 import yaml
 from torch import multiprocessing as mp
@@ -90,10 +90,6 @@ class Storage(Node):
                 return
 
         self.state[0:3] = torch.tensor(odo_msg.position, dtype=torch.float32, device=self.device)
-        # self.state[3:6] = torch.matmul(
-        #     get_DCM(self.state[6], self.state[7], self.state[8]).T, 
-        #     torch.from_numpy(odo_msg.velocity).to(dtype=torch.float32, device=self.device)
-        # )
 
         self.state[3:6] = torch.matmul(
             torch.tensor(R.from_quat(odo_msg.q, scalar_first=True).as_matrix().T, dtype=torch.float32, device=self.device),
@@ -102,12 +98,16 @@ class Storage(Node):
 
         self.state[6:9] = quat_to_euler(odo_msg.q, device=self.device)
 
+        if not hasattr(self, 'prev_yaw'):
+            self.prev_yaw = self.state[8].clone()
+        else:
+            self.state[8] = unwrap_angle(self.state[8], self.prev_yaw)
+            self.prev_yaw = self.state[8].clone()
+
         self.state[9:12] = torch.tensor(odo_msg.angular_velocity, dtype=torch.float32, device=self.device)
 
         self.action = torch.tensor(act_msg.output[:4], dtype=torch.float32, device=self.device)
 
-        # if self.buffer.get_len() <= self.config.replay_buffer.start_learning + 2:
-        #     # print("adding")
         self.buffer.add(self.state, self.action, dt)
         self.last_timestamp = current_timestamp
 
@@ -275,12 +275,17 @@ class WorldModelLearning():
     def train_step(self):
         self.optimizer.zero_grad()
         if self.buffer.get_len() > self.config.replay_buffer.start_learning:
-            dts, states, actions = self.buffer.sample(self.config.training.batch_size, 2)
+            dts, states, actions = self.buffer.sample(self.config.training.batch_size, 8)
             pred_traj = self.model.rollout(dts, states[:,0,:], actions)
 
+            # loss = self.model.loss(
+            #     torch.concat((pred_traj[:,1:,3:6], pred_traj[:,1:,9:12]), dim=-1), 
+            #     torch.concat((states[:,1:,3:6], states[:,1:, 9:12]), dim=-1)
+            # )
+
             loss = self.model.loss(
-                torch.concat((pred_traj[:,1:,3:6], pred_traj[:,1:,9:12]), dim=-1), 
-                torch.concat((states[:,1:,3:6], states[:,1:, 9:12]), dim=-1)
+                pred_traj[:,2:,:],
+                states[:,2:,:]
             )
 
             loss.backward()

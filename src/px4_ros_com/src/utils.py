@@ -1,6 +1,7 @@
 import torch
 import numpy as np
 from scipy.spatial.transform import Rotation as R
+import math
 
 def quat_to_euler(q: np.array, device) -> torch.Tensor:
     # Create rotation object and get euler angles
@@ -15,6 +16,15 @@ def l2_dist(vec1, vec2):
 
 def denormalize(val, min, max):
     return ((val + 1) / 2) * (max - min) + min
+
+
+def unwrap_angle(new_angle, prev_angle):
+    delta = new_angle - prev_angle
+    if delta > math.pi:
+        new_angle -= 2 * math.pi
+    elif delta < -math.pi:
+        new_angle += 2 * math.pi
+    return new_angle
 
 def get_DCM(phi: torch.Tensor, theta: torch.Tensor, psi: torch.Tensor) -> torch.Tensor:
     phi = torch.as_tensor(phi, dtype=torch.float32)
