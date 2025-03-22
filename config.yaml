@@ -1,5 +1,6 @@
 device: cpu
 timeout: 1200
+chirp_timeout: 100
 
 physics: 
   refresh_rate: 0.05 # This is in ms 10hz
@@ -67,6 +68,7 @@ behvaior_learning:
   actor_lr: 0.0003
   batch_size: 32
   horizon: 32
+  nu: 0.0001
 
 training: 
   num_epochs: 64

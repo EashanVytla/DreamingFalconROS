@@ -298,13 +298,13 @@ def main(args=None) -> None:
     start_time = time.time()
 
     offboard_control = OffboardControl()
-    timeout = offboard_control.config.timeout
+    timeout = offboard_control.config.chirp_timeout
 
     while rclpy.ok():
         rclpy.spin_once(offboard_control)
 
         if time.time() - start_time > timeout:
-            print("\nTimeout reached! Shutting down.")
+            print("\nTimeout reached! Shutting down chirp.")
             break
 
     offboard_control.destroy_node()

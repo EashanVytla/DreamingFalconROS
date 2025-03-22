@@ -3,7 +3,7 @@
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy, DurabilityPolicy
-from px4_msgs.msg import VehicleOdometry, ActuatorOutputs
+from px4_msgs.msg import VehicleOdometry, ActuatorOutputs, ActuatorMotors
 import torch
 from utils import quat_to_euler, AttrDict, get_DCM, normalize, denormalize
 from replay_buffer import ReplayBuffer
@@ -20,9 +20,10 @@ import re
 from datetime import datetime
 import copy
 import json
+import threading
 
 class Storage(Node):
-    def __init__(self, buffer) -> None:
+    def __init__(self, buffer, actor) -> None:
         super().__init__('storage_node')
         self.declare_parameter('config_file', 'config.yaml')
         self.config_file = self.get_parameter('config_file').value
@@ -32,6 +33,7 @@ class Storage(Node):
 
         self.config = AttrDict.from_dict(config_dict)
         self.buffer = buffer
+        self.actor = actor
 
         self.state_dim = self.config.force_model.state_dim
         self.action_dim = self.config.force_model.action_dim
@@ -78,6 +80,11 @@ class Storage(Node):
 
         self.time_sync.registerCallback(self.data_callback)
 
+        self.actuator_publisher = self.create_publisher(ActuatorMotors, '/fmu/in/actuator_motors', qos_profile)
+
+        self.start_time = time.time()
+        start_act = False
+
         self.last_timestamp = None
 
     def data_callback(self, odo_msg, act_msg):
@@ -110,8 +117,18 @@ class Storage(Node):
         self.buffer.add(self.state, self.action, dt)
         self.last_timestamp = current_timestamp
 
+        if time.time() - self.start_time > self.config.chirp_timeout:
+            if not start_act:
+                print("Starting acting")
+                start_act = True
+            # This will change if we decide to add back in normalization
+            act = self.actor(self.state)
+            msg = ActuatorMotors()
+            msg.control = [act[0], act[1], act[2], act[3], 0, 0, 0, 0, 0, 0, 0, 0]
+            self.actuator_publisher.publish(msg)
+
 class Learner():
-    def __init__(self, buffer, config_file):
+    def __init__(self, buffer, actor, config_file):
         self.buffer = buffer
 
         config_index = re.search(r'config_(\d+)\.yaml$', config_file)
@@ -149,11 +166,12 @@ class Learner():
         )
 
         self.batch_count = 0
+        self.target_state = [0, 0, 10]
 
         self.critic = Critic(self.config).to(device=self.config.device)
         self.critic_prime = copy.deepcopy(self.critic)
 
-        self.actor = Actor(self.config).to(device=self.config.device)
+        self.actor = actor
 
         self.actor_optimizer = torch.optim.Adam(self.actor.parameters(), lr=self.config.behvaior_learning.actor_lr)
         self.critic_optimizer = torch.optim.Adam(self.critic.parameters(), lr=self.config.behvaior_learning.critic_lr)
@@ -285,13 +303,22 @@ class Learner():
         _, states, _ = self.buffer.sample(self.config.behvaior_learning.batch_size, 1)
 
         traj = [states[:,0,:]]
+        log_probs = []
+        acts = []
+        dts = torch.ones((states.shape[0],1), dtype=torch.float32, device=self.device) * self.config.physics.refresh_rate
         for t in range(self.config.behavior_learning.horizon):
-            act = self.actor(traj[t])
-            act_pwm = denormalize(act, self.norm_ranges.act_min, self.norm_ranges.act_max)
+            act, log_prob = self.actor(traj[t])
+            
+            # If we have to normalize, modify this
+            traj.append(self.world_model.predict(dts, traj[-1], act))
+            log_probs.append(log_prob)
+            acts.append(act)
+
+        log_probs = torch.stack(log_probs)
 
         v = [self.critic_copy(traj[len(traj)-1])]
         for t in range(len(traj)-2, -1, -1):
-            v_t = self.world_model.compute_reward(traj[t]) + \
+            v_t = self.world_model.compute_reward(traj[t], self.target_state, act, 0.5) + \
                     ((1 - self.config.behavior_learning.lambda_val) * self.critic_copy(traj[t+1]) + \
                     self.config.behavior_learning.lambda_val * v[-1])
             v.append(v_t)
@@ -302,11 +329,13 @@ class Learner():
         critic_loss = torch.square(critic_val - lambda_val.detach()).sum(1).mean()
 
         critic_loss.backward(inputs=[param for param in self.critic.parameters()])
-            
 
-        # Compute the actor loss
+        actor_loss = (lambda_val - self.config.behavior_learning.nu*log_probs).sum(1).mean()
 
-        # Run the optimizer step
+        actor_loss.backward(inputs=[param for param in self.actor.parameters()])
+
+        self.actor_optimizer.step()
+        self.critic_optimizer.step()
 
     def wm_train_step(self):
         self.wm_optimizer.zero_grad()
@@ -337,9 +366,9 @@ class Learner():
             print(f"Not enough data yet: {self.buffer.get_len()}")
             time.sleep(1.0)
 
-def wm_train_process_fn(buffer, config_file, stop_event):
+def wm_train_process_fn(buffer, actor, config_file, stop_event):
     try:
-        learner = Learner(buffer, config_file)
+        learner = Learner(buffer, actor, config_file)
         while not stop_event.is_set():
             learner.wm_train_step()
             learner.beh_train_step()
@@ -362,7 +391,7 @@ def main(args=None) -> None:
     rclpy.init(args=args)
     start_time = time.time()
 
-    storage_node = Storage(None)
+    storage_node = Storage(None, None)
     config_file = storage_node.config_file
 
     with open(config_file, 'r') as file:
@@ -373,8 +402,10 @@ def main(args=None) -> None:
     timeout = config.timeout
 
     buffer = ReplayBuffer(config)
+    actor = Actor(config).to(device=config.device)
 
     storage_node.buffer = buffer
+    storage_node.actor = actor
 
     mp.set_start_method('spawn', force=True)
 
@@ -383,7 +414,7 @@ def main(args=None) -> None:
 
     train_process = mp.Process(
         target=wm_train_process_fn, 
-        args=[buffer, config_file, stop_event]
+        args=[buffer, actor, config_file, stop_event]
     )
     train_process.start()
     

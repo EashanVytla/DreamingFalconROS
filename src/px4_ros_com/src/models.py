@@ -6,6 +6,7 @@ import math
 from rk4_solver import RK4_Solver
 import torch.nn.functional as F
 import copy
+from torch import multiprocessing as mp
 
 class MLP(nn.Module):
     def __init__(self, input_dim, hidden_dims, output_dim, activation='relu'):
@@ -53,39 +54,43 @@ class Actor(torch.nn.Module):
         self.mu = torch.nn.Linear(dims[-1], config.actor_model.output_dim)
         self.log_sigma = torch.nn.Linear(dims[-1], config.actor_model.output_dim)
 
+        ctx = mp.get_context('spawn')
+        self.lock = ctx.Lock()
+
     def forward(self, x_t, deterministic=False, with_logprob=False):
-        out = x_t
-        for layer in self.shared_layers:
-            out = layer(out)
+        with self.lock:
+            out = x_t
+            for layer in self.shared_layers:
+                out = layer(out)
 
-        # --- Start of code adapted from: Physics Informed Model Based RL
-        # Author: Adithya Ramesh
-        # Date: May 14 2023
-        # Source: https://github.com/adi3e08/Physics_Informed_Model_Based_RL/blob/main/models/mbrl.py ---
+            # --- Start of code adapted from: Physics Informed Model Based RL
+            # Author: Adithya Ramesh
+            # Date: May 14 2023
+            # Source: https://github.com/adi3e08/Physics_Informed_Model_Based_RL/blob/main/models/mbrl.py ---
 
-        mu = self.mu(out)
-        log_sigma = self.log_sigma(out)
-        
-        log_sigma = torch.clamp(log_sigma, min=-20.0, max=2.0)
-        sigma = torch.exp(log_sigma)
-        
-        if deterministic:
-            action = torch.tanh(mu)
-            return action, None
-        
-        dist = torch.distributions.Normal(mu, sigma)
-        x_t = dist.rsample()
-        action = torch.tanh(x_t)
+            mu = self.mu(out)
+            log_sigma = self.log_sigma(out)
+            
+            log_sigma = torch.clamp(log_sigma, min=-20.0, max=2.0)
+            sigma = torch.exp(log_sigma)
+            
+            if deterministic:
+                action = torch.tanh(mu)
+                return action, None
+            
+            dist = torch.distributions.Normal(mu, sigma)
+            x_t = dist.rsample()
+            action = torch.tanh(x_t)
 
-        if with_logprob:
-            log_prob = dist.log_prob(x_t).sum(1)
-            log_prob -= torch.log(torch.clamp(1-action.pow(2), min=1e-6)).sum(1)
-        else:
-            log_prob = None
-    
-        return action, log_prob
-    
-        # --- End of adapted code ---
+            if with_logprob:
+                log_prob = dist.log_prob(x_t).sum(1)
+                log_prob -= torch.log(torch.clamp(1-action.pow(2), min=1e-6)).sum(1)
+            else:
+                log_prob = None
+        
+            return action, log_prob
+        
+            # --- End of adapted code ---
     
 class Critic(nn.Module):
     def __init__(self, config, device):
