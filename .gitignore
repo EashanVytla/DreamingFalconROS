@@ -20,7 +20,7 @@ msg/_*.py
 build_isolated/
 devel_isolated/
 models/
-# runs/
+runs/
 
 # Ignore Apptainer/Singularity images
 *.sif
