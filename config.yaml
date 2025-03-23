@@ -1,5 +1,5 @@
 device: cpu
-timeout: 1200
+timeout: 180
 
 physics: 
   refresh_rate: 0.05 # This is in ms 10hz

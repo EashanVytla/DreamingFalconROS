@@ -41,6 +41,6 @@ def generate_launch_description():
     return LaunchDescription([
         config_file_arg,
         # micro_ros_agent,
-        chirp_node,
+        # chirp_node,
         training_node
     ])
