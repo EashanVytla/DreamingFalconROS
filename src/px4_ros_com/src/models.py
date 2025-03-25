@@ -57,7 +57,7 @@ class Actor(torch.nn.Module):
         ctx = mp.get_context('spawn')
         self.lock = ctx.Lock()
 
-    def forward(self, x_t, deterministic=False, with_logprob=False):
+    def forward(self, x_t):
         with self.lock:
             out = x_t
             for layer in self.shared_layers:
@@ -74,19 +74,12 @@ class Actor(torch.nn.Module):
             log_sigma = torch.clamp(log_sigma, min=-20.0, max=2.0)
             sigma = torch.exp(log_sigma)
             
-            if deterministic:
-                action = torch.tanh(mu)
-                return action, None
-            
             dist = torch.distributions.Normal(mu, sigma)
             x_t = dist.rsample()
             action = torch.tanh(x_t)
 
-            if with_logprob:
-                log_prob = dist.log_prob(x_t).sum(1)
-                log_prob -= torch.log(torch.clamp(1-action.pow(2), min=1e-6)).sum(1)
-            else:
-                log_prob = None
+            log_prob = dist.log_prob(x_t).sum(1)
+            log_prob -= torch.log(torch.clamp(1-action.pow(2), min=1e-6)).sum(1)
         
             return action, log_prob
         
@@ -99,8 +92,9 @@ class Critic(nn.Module):
         hidden_dims = [config.critic_model.hidden_size] * config.critic_model.hidden_layers
         self.critic = MLP(config.critic_model.input_dim, hidden_dims, config.critic_model.output_dim, config.critic_model.activation).to(device=config.device)
 
-    def loss():
-        pass
+    def forward(self, x_t):
+        return self.critic(x_t)
+
 
 class WorldModel(nn.Module):
     def __init__(self, config, device):
@@ -183,10 +177,10 @@ class WorldModel(nn.Module):
         print(f"forces mean: {self.forces_mean}")
         print(f"forces std: {self.forces_std}")
 
-    def compute_reward(state, target_state, control_input, tolerance):
-        pos_error = torch.norm(state[:,0:3] - target_state[:,0:3])
-        vel_error = torch.norm(state[:,3:6] - target_state[:,3:6])
-        att_error = torch.norm(state[:,6:9] - target_state[:,6:9])
+    def compute_reward(self, state, target_state, control_input, tolerance):
+        pos_error = torch.norm(state[:,0:3] - target_state[0:3].unsqueeze(0))
+        vel_error = torch.norm(state[:,3:6] - target_state[3:6].unsqueeze(0))
+        att_error = torch.norm(state[:,6:9] - target_state[6:9].unsqueeze(0))
         
         w_p = 1.0   # weight for position error
         w_v = 0.5   # weight for velocity error
@@ -201,7 +195,7 @@ class WorldModel(nn.Module):
         reward -= control_penalty
         
         # Bonus if within a tolerance threshold (stability bonus)
-        if pos_error < tolerance and att_error < tolerance:
+        if pos_error < tolerance:
             reward += 1.0
         
         return reward

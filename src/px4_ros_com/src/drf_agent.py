@@ -5,7 +5,7 @@ from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy, DurabilityPolicy
 from px4_msgs.msg import VehicleOdometry, ActuatorOutputs, ActuatorMotors
 import torch
-from utils import quat_to_euler, AttrDict, get_DCM, normalize, denormalize, unwrap_angle
+from utils import quat_to_euler, AttrDict, denormalize, unwrap_angle, hard_update
 from replay_buffer import ReplayBuffer
 import yaml
 from torch import multiprocessing as mp
@@ -84,8 +84,8 @@ class Storage(Node):
 
         self.actuator_publisher = self.create_publisher(ActuatorMotors, '/fmu/in/actuator_motors', qos_profile)
 
-        self.start_time = time.time()
-        start_act = False
+        self.start_time = time.time() - 5.0
+        self.start_act = False
 
         self.last_timestamp = None
 
@@ -120,13 +120,18 @@ class Storage(Node):
         self.last_timestamp = current_timestamp
 
         if time.time() - self.start_time > self.config.chirp_timeout:
-            if not start_act:
+            if not self.start_act:
                 print("Starting acting")
-                start_act = True
+                self.start_act = True
             # This will change if we decide to add back in normalization
-            act = self.actor(self.state)
+            act, _ = self.actor(self.state.unsqueeze(0))
             msg = ActuatorMotors()
-            msg.control = [act[0], act[1], act[2], act[3], 0, 0, 0, 0, 0, 0, 0, 0]
+            print(f"Act Shape: {act}")
+            msg.control = [act[0,0].item(), 
+                           act[0,1].item(), 
+                           act[0,2].item(), 
+                           act[0,3].item(), 
+                           0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
             self.actuator_publisher.publish(msg)
 
 class Learner():
@@ -168,15 +173,16 @@ class Learner():
         )
 
         self.batch_count = 0
-        self.target_state = [0, 0, 10]
+        self.target_state = torch.tensor([0, 0, 10, 0, 0, 0, 0, 0, 0, 0, 0, 0], dtype=torch.float32, device=self.config.device)
 
-        self.critic = Critic(self.config).to(device=self.config.device)
-        self.critic_prime = copy.deepcopy(self.critic)
+        self.critic = Critic(self.config, self.config.device)
+        self.critic_copy = copy.deepcopy(self.critic)
+        self.beh_updates = 0
 
         self.actor = actor
 
-        self.actor_optimizer = torch.optim.Adam(self.actor.parameters(), lr=self.config.behvaior_learning.actor_lr)
-        self.critic_optimizer = torch.optim.Adam(self.critic.parameters(), lr=self.config.behvaior_learning.critic_lr)
+        self.actor_optimizer = torch.optim.Adam(self.actor.parameters(), lr=self.config.behavior_learning.actor_lr)
+        self.critic_optimizer = torch.optim.Adam(self.critic.parameters(), lr=self.config.behavior_learning.critic_lr)
         
     def compute_gradient_norm(self):
         total_norm = 0
@@ -302,12 +308,14 @@ class Learner():
     def beh_train_step(self):
         self.actor_optimizer.zero_grad()
         self.critic_optimizer.zero_grad()
-        _, states, _ = self.buffer.sample(self.config.behvaior_learning.batch_size, 1)
+
+        _, states, _ = self.buffer.sample(self.config.behavior_learning.batch_size, 1)
 
         traj = [states[:,0,:]]
         log_probs = []
         acts = []
         dts = torch.ones((states.shape[0],1), dtype=torch.float32, device=self.device) * self.config.physics.refresh_rate
+
         for t in range(self.config.behavior_learning.horizon):
             act, log_prob = self.actor(traj[t])
             
@@ -316,79 +324,100 @@ class Learner():
             log_probs.append(log_prob)
             acts.append(act)
 
-        log_probs = torch.stack(log_probs)
-
-        v = [self.critic_copy(traj[len(traj)-1])]
-        for t in range(len(traj)-2, -1, -1):
-            v_t = self.world_model.compute_reward(traj[t], self.target_state, act, 0.5) + \
-                    ((1 - self.config.behavior_learning.lambda_val) * self.critic_copy(traj[t+1]) + \
-                    self.config.behavior_learning.lambda_val * v[-1])
+        log_probs = torch.stack(log_probs, dim=1).unsqueeze(-1)
+        
+        v = [self.critic_copy(traj[-1])]
+        for t in range(len(traj)-3, -1, -1):
+            v_t = self.world_model.compute_reward(traj[t], self.target_state, acts[t], 0.5) + \
+                    ((1 - self.config.critic_model.lambda_val) * self.critic_copy(traj[t+1]) + \
+                    self.config.critic_model.lambda_val * v[-1])
             v.append(v_t)
         v.reverse()
         lambda_val = torch.stack(v, dim=1)
         
-        critic_val = torch.stack([self.critic(traj[x]) for x in range(len(traj))], dim=1)
+        critic_val = torch.stack([self.critic(traj[x]) for x in range(len(traj)-1)], dim=1)
         critic_loss = torch.square(critic_val - lambda_val.detach()).sum(1).mean()
 
         critic_loss.backward(inputs=[param for param in self.critic.parameters()])
 
-        actor_loss = (lambda_val - self.config.behavior_learning.nu*log_probs).sum(1).mean()
+        actor_loss = -1.0 * (lambda_val - self.config.behavior_learning.nu*log_probs).sum(1).mean()
 
         actor_loss.backward(inputs=[param for param in self.actor.parameters()])
 
         self.actor_optimizer.step()
         self.critic_optimizer.step()
 
+        if self.beh_updates % self.config.critic_model.hard_update == 0:
+            print("Hard updating critic!")
+            hard_update(self.critic_copy, self.critic)
+            print("Done hard updating")
+
+        if self.beh_updates % 25 == 0:
+            self.writer.add_scalar("Behavior/critic_loss", critic_loss, self.beh_updates)
+            self.writer.add_scalar("Behavior/actor_loss", actor_loss, self.beh_updates)
+
+            total_reward = sum([self.world_model.compute_reward(traj[t], self.target_state, act, 0.5).item() for t, act in enumerate(acts)])
+            self.writer.add_scalar('Reward/total', total_reward, self.beh_updates)
+
+        self.beh_updates += 1
+
     def wm_train_step(self):
         self.wm_optimizer.zero_grad()
-        if self.buffer.get_len() > self.config.replay_buffer.start_learning:
-            dts, states, actions = self.buffer.sample(self.config.training.batch_size, 8)
-            pred_traj = self.model.rollout(dts, states[:,0,:], actions)
+        
+        dts, states, actions = self.buffer.sample(self.config.training.batch_size, 8)
+        pred_traj = self.world_model.rollout(dts, states[:,0,:], actions)
 
-            # loss = self.model.loss(
-            #     torch.concat((pred_traj[:,1:,3:6], pred_traj[:,1:,9:12]), dim=-1), 
-            #     torch.concat((states[:,1:,3:6], states[:,1:, 9:12]), dim=-1)
-            # )
+        # loss = self.model.loss(
+        #     torch.concat((pred_traj[:,1:,3:6], pred_traj[:,1:,9:12]), dim=-1), 
+        #     torch.concat((states[:,1:,3:6], states[:,1:, 9:12]), dim=-1)
+        # )
 
-            loss = self.world_model.loss(
-                pred_traj[:,2:,:],
-                states[:,2:,:]
-            )
+        loss = self.world_model.loss(
+            pred_traj[:,2:,:],
+            states[:,2:,:]
+        )
 
-            loss.backward()
-            torch.nn.utils.clip_grad_norm_(self.world_model.parameters(), max_norm=50.0)
-            self.wm_optimizer.step()
-            # self.seq_scheduler.step(loss.item())
+        loss.backward()
+        torch.nn.utils.clip_grad_norm_(self.world_model.parameters(), max_norm=50.0)
+        self.wm_optimizer.step()
+        # self.seq_scheduler.step(loss.item())
 
-            if self.batch_count % 25 == 0:
-                self.validate()
-                grad_norm = self.compute_gradient_norm()
-                self.writer.add_scalar("Norms/gradient_norm", grad_norm, self.batch_count)
-                weight_norm = self.compute_weight_norm()
-                self.writer.add_scalar("Norms/weight_norm", weight_norm, self.batch_count)
-                self.writer.add_scalar("Loss/train", loss, self.batch_count)
-            
-            self.batch_count += 1
-        else:
-            print(f"Not enough data yet: {self.buffer.get_len()}")
-            time.sleep(1.0)
+        if self.batch_count % 25 == 0:
+            self.validate()
+            grad_norm = self.compute_gradient_norm()
+            self.writer.add_scalar("Norms/gradient_norm", grad_norm, self.batch_count)
+            weight_norm = self.compute_weight_norm()
+            self.writer.add_scalar("Norms/weight_norm", weight_norm, self.batch_count)
+            self.writer.add_scalar("Loss/train", loss, self.batch_count)
+        
+        self.batch_count += 1
+        
 
 def wm_train_process_fn(buffer, actor, config_file, stop_event):
     try:
+        num_updates = 0
         learner = Learner(buffer, actor, config_file)
         while not stop_event.is_set():
-            learner.wm_train_step()
-            learner.beh_train_step()
+            if learner.buffer.get_len() > learner.config.replay_buffer.start_learning:
+                learner.wm_train_step()
+                if num_updates > learner.config.behavior_learning.start_point:
+                    print("behavior step!")
+                    learner.beh_train_step()
+                num_updates += 1
+            else:
+                print(f"Not enough data yet: {learner.buffer.get_len()}")
+                time.sleep(1.0)
     except KeyboardInterrupt:
         print("Training process interrupted")
     except Exception as e:
         print(f"Training error: {e}")
     finally:
-        learner.validate(save_to_table=True)
-        print("Saving model...")
-        learner.save_wm()
-        if 'learner' in locals():
-            learner.close_writer()
+        if learner:
+            learner.validate(save_to_table=True)
+            print("Saving model...")
+            learner.save_wm()
+            if 'learner' in locals():
+                learner.close_writer()
 
 def main(args=None) -> None:
     print('Waiting 5 seconds before starting...')
@@ -437,6 +466,8 @@ def main(args=None) -> None:
     except KeyboardInterrupt:
         stop_event.set()
         print("keyboard interrupt")
+    except Exception as e:
+        print(f"Training error: {e}")
     finally:
         print("Waiting for training process to finish cleanup (max 30 seconds)...")
         train_process.join(timeout=60)  # Wait for graceful shutdown

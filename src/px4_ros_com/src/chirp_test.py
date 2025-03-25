@@ -88,6 +88,8 @@ class OffboardControl(Node):
         self.takeoff_height = -5.0
 
         self.publish_counter = 0
+        
+        self.start_time = time.time()
 
         # Create a timer to publish control commands
         self.timer = self.create_timer(self.config.physics.refresh_rate, self.timer_callback)
@@ -123,14 +125,15 @@ class OffboardControl(Node):
         self.publish_vehicle_command(VehicleCommand.VEHICLE_CMD_NAV_LAND)
         self.get_logger().info("Switching to land mode", throttle_duration_sec=1)
 
-    def publish_offboard_control_heartbeat_signal(self):
+    def publish_offboard_control_heartbeat_signal(self, direct_act=False):
         """Publish the offboard control mode."""
         msg = OffboardControlMode()
-        msg.position = True
-        msg.velocity = True
-        msg.acceleration = True
+        msg.position = not direct_act
+        msg.velocity = False
+        msg.acceleration = False
         msg.attitude = False
         msg.body_rate = False
+        msg.direct_actuator = direct_act
         msg.timestamp = int(self.get_clock().now().nanoseconds / 1000)
         self.offboard_control_mode_publisher.publish(msg)
 
@@ -231,7 +234,11 @@ class OffboardControl(Node):
 
     def timer_callback(self) -> None:
         """Callback function for the timer."""
-        self.publish_offboard_control_heartbeat_signal()
+        if time.time() - self.start_time > self.config.chirp_timeout:
+            self.publish_offboard_control_heartbeat_signal(direct_act=True)
+            return
+        else:
+            self.publish_offboard_control_heartbeat_signal()
 
         if self.current_state == DroneState.CHIRP and abs(self.vehicle_local_position.z) < 1.0:
             print("Too close to ground. Resetting.")
@@ -298,7 +305,7 @@ def main(args=None) -> None:
     start_time = time.time()
 
     offboard_control = OffboardControl()
-    timeout = offboard_control.config.chirp_timeout
+    timeout = offboard_control.config.timeout
 
     while rclpy.ok():
         rclpy.spin_once(offboard_control)

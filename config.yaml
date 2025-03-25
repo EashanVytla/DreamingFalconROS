@@ -1,6 +1,6 @@
-device: cpu
+device: cuda
 timeout: 1200
-chirp_timeout: 100
+chirp_timeout: 1200
 
 physics: 
   refresh_rate: 0.05 # This is in ms 10hz
@@ -54,7 +54,9 @@ critic_model:
   output_dim: 1
   input_dim: 12
   activation: relu
-  discount_factor: 0.997
+  discount_factor: 0.95
+  lambda_val: 0.95
+  hard_update: 100
 
 actor_model:
   hidden_layers: 1
@@ -63,9 +65,10 @@ actor_model:
   input_dim: 12
   activation: relu
 
-behvaior_learning:
-  critic_lr: 0.0003
-  actor_lr: 0.0003
+behavior_learning:
+  start_point: 60 # num of batch updates of world model to wait to start behavior steps
+  critic_lr: 0.0001
+  actor_lr: 0.0001
   batch_size: 32
   horizon: 32
   nu: 0.0001

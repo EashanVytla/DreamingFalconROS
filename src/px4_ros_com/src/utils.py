@@ -26,6 +26,16 @@ def unwrap_angle(new_angle, prev_angle):
         new_angle += 2 * math.pi
     return new_angle
 
+# --- Start of code adapted from: Physics Informed Model Based RL
+# Author: Adithya Ramesh
+# Date: May 14 2023
+# Source: https://github.com/adi3e08/Physics_Informed_Model_Based_RL/blob/main/models/mbrl.py ---
+def hard_update(target, source):
+    with torch.no_grad():
+        for target_param, param in zip(target.parameters(), source.parameters()):
+            target_param.data.copy_(param.data)
+# --- End of adapted code ---
+
 def get_DCM(phi: torch.Tensor, theta: torch.Tensor, psi: torch.Tensor) -> torch.Tensor:
     phi = torch.as_tensor(phi, dtype=torch.float32)
     theta = torch.as_tensor(theta, dtype=torch.float32)
