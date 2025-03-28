@@ -73,6 +73,10 @@ class Actor(torch.nn.Module):
             
             log_sigma = torch.clamp(log_sigma, min=-20.0, max=2.0)
             sigma = torch.exp(log_sigma)
+
+            if torch.isnan(sigma).any():
+                print(f"sigma nan! {sigma}")
+                return None, None
             
             dist = torch.distributions.Normal(mu, sigma)
             x_t = dist.rsample()
@@ -182,10 +186,10 @@ class WorldModel(nn.Module):
         vel_error = torch.norm(state[:,3:6] - target_state[3:6].unsqueeze(0))
         att_error = torch.norm(state[:,6:9] - target_state[6:9].unsqueeze(0))
         
-        w_p = 1.0   # weight for position error
-        w_v = 0.5   # weight for velocity error
-        w_a = 0.5   # weight for attitude error
-        w_c = 0.1   # weight for control effort
+        w_p = 0.0   # weight for position error
+        w_v = 0.005   # weight for velocity error
+        w_a = 0.0   # weight for attitude error
+        w_c = 0.0005   # weight for control effort
         
         # Base reward: negative of weighted error terms
         reward = -(w_p * pos_error + w_v * vel_error + w_a * att_error)
@@ -195,8 +199,8 @@ class WorldModel(nn.Module):
         reward -= control_penalty
         
         # Bonus if within a tolerance threshold (stability bonus)
-        if pos_error < tolerance:
-            reward += 1.0
+        if vel_error.item() < tolerance:
+            reward += 0.005
         
         return reward
 

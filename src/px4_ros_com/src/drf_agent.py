@@ -173,7 +173,7 @@ class Learner():
         )
 
         self.batch_count = 0
-        self.target_state = torch.tensor([0, 0, 10, 0, 0, 0, 0, 0, 0, 0, 0, 0], dtype=torch.float32, device=self.config.device)
+        self.target_state = torch.tensor([0, 0, 0, 5, 5, 0, 0, 0, 0, 0, 0, 0], dtype=torch.float32, device=self.config.device)
 
         self.critic = Critic(self.config, self.config.device)
         self.critic_copy = copy.deepcopy(self.critic)
@@ -183,6 +183,11 @@ class Learner():
 
         self.actor_optimizer = torch.optim.Adam(self.actor.parameters(), lr=self.config.behavior_learning.actor_lr)
         self.critic_optimizer = torch.optim.Adam(self.critic.parameters(), lr=self.config.behavior_learning.critic_lr)
+
+        for name, param in actor.named_parameters():
+            if param.requires_grad:
+                param.register_hook(lambda grad, n=name: print(f"NaN detected in gradient of {n}") if torch.isnan(grad).any() else None)
+
         
     def compute_gradient_norm(self):
         total_norm = 0
@@ -317,7 +322,18 @@ class Learner():
         dts = torch.ones((states.shape[0],1), dtype=torch.float32, device=self.device) * self.config.physics.refresh_rate
 
         for t in range(self.config.behavior_learning.horizon):
+            if torch.isnan(traj[t]).any():
+                print(f"Nan detected in state! t={t}")
+                return
             act, log_prob = self.actor(traj[t])
+
+            if act is None or log_prob is None:
+                print(f"None act or log_prob t={t}")
+                return
+
+            if torch.isnan(act).any():
+                print(f"Nan detected in action t={t}!")
+                return
             
             # If we have to normalize, modify this
             traj.append(self.world_model.predict(dts, traj[-1], act))
@@ -329,8 +345,8 @@ class Learner():
         v = [self.critic_copy(traj[-1])]
         for t in range(len(traj)-3, -1, -1):
             v_t = self.world_model.compute_reward(traj[t], self.target_state, acts[t], 0.5) + \
-                    ((1 - self.config.critic_model.lambda_val) * self.critic_copy(traj[t+1]) + \
-                    self.config.critic_model.lambda_val * v[-1])
+                    self.config.critic_model.discount_factor * (((1 - self.config.critic_model.lambda_val) * self.critic_copy(traj[t+1]) + \
+                    self.config.critic_model.lambda_val * v[-1]))
             v.append(v_t)
         v.reverse()
         lambda_val = torch.stack(v, dim=1)
@@ -339,25 +355,39 @@ class Learner():
         critic_loss = torch.square(critic_val - lambda_val.detach()).sum(1).mean()
 
         critic_loss.backward(inputs=[param for param in self.critic.parameters()])
+        torch.nn.utils.clip_grad_norm_(self.critic.parameters(), 100)
 
-        actor_loss = -1.0 * (lambda_val - self.config.behavior_learning.nu*log_probs).sum(1).mean()
+        actor_loss = -1.0 * lambda_val.sum(1).mean()
 
-        actor_loss.backward(inputs=[param for param in self.actor.parameters()])
+        entropy_pen = (self.config.behavior_learning.nu*log_probs).sum(1).mean()
+
+        total_actor_loss = actor_loss + entropy_pen
+
+        total_actor_loss.backward(inputs=[param for param in self.actor.parameters()])
+        torch.nn.utils.clip_grad_norm_(self.actor.parameters(), 100)
 
         self.actor_optimizer.step()
         self.critic_optimizer.step()
+
+        if self.beh_updates % 25 == 0:
+            self.writer.add_scalar("Behavior/critic_loss", critic_loss, self.beh_updates)
+            self.writer.add_scalar("Behavior/actor_loss", actor_loss, self.beh_updates)
+            self.writer.add_scalar("Behavior/entropy_pen", entropy_pen, self.beh_updates)
+            self.writer.add_scalar("Behavior/total_actor_loss", total_actor_loss, self.beh_updates)
+
+            critic_grad = torch.norm(torch.cat([param.grad.flatten() for param in self.critic.parameters()]))
+            actor_grad = torch.norm(torch.cat([param.grad.flatten() for param in self.actor.parameters()]))
+
+            self.writer.add_scalar("Behavior/critic_grad", critic_grad, self.beh_updates)
+            self.writer.add_scalar("Behavior/actor_grad", actor_grad, self.beh_updates)
+
+            total_reward = sum([self.world_model.compute_reward(traj[t], self.target_state, act, 0.5).item() for t, act in enumerate(acts)])
+            self.writer.add_scalar('Reward/total', total_reward, self.beh_updates)
 
         if self.beh_updates % self.config.critic_model.hard_update == 0:
             print("Hard updating critic!")
             hard_update(self.critic_copy, self.critic)
             print("Done hard updating")
-
-        if self.beh_updates % 25 == 0:
-            self.writer.add_scalar("Behavior/critic_loss", critic_loss, self.beh_updates)
-            self.writer.add_scalar("Behavior/actor_loss", actor_loss, self.beh_updates)
-
-            total_reward = sum([self.world_model.compute_reward(traj[t], self.target_state, act, 0.5).item() for t, act in enumerate(acts)])
-            self.writer.add_scalar('Reward/total', total_reward, self.beh_updates)
 
         self.beh_updates += 1
 

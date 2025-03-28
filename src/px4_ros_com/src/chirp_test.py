@@ -189,8 +189,10 @@ class OffboardControl(Node):
     def handle_takeoff_state(self):
         """Handle the TAKEOFF state behavior"""
         self.publish_position_setpoint(0.0, 0.0, self.target_takeoff_height)
+        dist = abs(self.vehicle_local_position.z - self.target_takeoff_height)
+        print(f"Dist to target altitude: {dist}")
         
-        if abs(self.vehicle_local_position.z - self.target_takeoff_height) < 0.5:
+        if dist < 1.0:
             self.get_logger().info("Takeoff complete, starting chirp")
             self.current_state = DroneState.CHIRP
             self.get_logger().set_level(rclpy.logging.LoggingSeverity.ERROR)
