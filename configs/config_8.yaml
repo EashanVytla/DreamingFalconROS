@@ -71,7 +71,7 @@ behavior_learning:
   actor_lr: 0.00004
   batch_size: 32
   horizon: 32
-  nu: 0.0001
+  nu: 0.001
 
 training: 
   num_epochs: 64

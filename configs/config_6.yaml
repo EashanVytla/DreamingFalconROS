@@ -1,5 +1,6 @@
 device: cpu
-timeout: 1200
+timeout: 2400
+chirp_timeout: 1800 #1200
 
 physics: 
   refresh_rate: 0.05 # This is in ms 10hz
@@ -47,10 +48,35 @@ force_model:
   action_dim: 4
   activation: relu
 
+critic_model:
+  hidden_layers: 1
+  hidden_size: 256
+  output_dim: 1
+  input_dim: 12
+  activation: relu
+  discount_factor: 0.95
+  lambda_val: 0.95
+  hard_update: 100
+
+actor_model:
+  hidden_layers: 1
+  hidden_size: 256
+  output_dim: 4
+  input_dim: 12
+  activation: relu
+
+behavior_learning:
+  start_point: 60 # num of batch updates of world model to wait to start behavior steps
+  critic_lr: 0.0003
+  actor_lr: 0.00001
+  batch_size: 32
+  horizon: 32
+  nu: 0.0001
+
 training: 
   num_epochs: 64
   batch_size: 64
-  lr: 0.005
+  lr: 0.0003
   min_lr: 0.0075
   init_seq_len: 2
   max_seq_len: 2

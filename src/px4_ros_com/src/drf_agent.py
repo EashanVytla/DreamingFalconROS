@@ -311,9 +311,6 @@ class Learner():
                     print(f"Error saving results: {e}")
 
     def beh_train_step(self):
-        self.actor_optimizer.zero_grad()
-        self.critic_optimizer.zero_grad()
-
         _, states, _ = self.buffer.sample(self.config.behavior_learning.batch_size, 1)
 
         traj = [states[:,0,:]]
@@ -369,6 +366,10 @@ class Learner():
         self.actor_optimizer.step()
         self.critic_optimizer.step()
 
+        self.actor_optimizer.zero_grad()
+        self.critic_optimizer.zero_grad()
+        self.wm_optimizer.zero_grad()
+
         if self.beh_updates % 25 == 0:
             self.writer.add_scalar("Behavior/critic_loss", critic_loss, self.beh_updates)
             self.writer.add_scalar("Behavior/actor_loss", actor_loss, self.beh_updates)
@@ -392,8 +393,6 @@ class Learner():
         self.beh_updates += 1
 
     def wm_train_step(self):
-        self.wm_optimizer.zero_grad()
-        
         dts, states, actions = self.buffer.sample(self.config.training.batch_size, 8)
         pred_traj = self.world_model.rollout(dts, states[:,0,:], actions)
 
@@ -410,6 +409,9 @@ class Learner():
         loss.backward()
         torch.nn.utils.clip_grad_norm_(self.world_model.parameters(), max_norm=50.0)
         self.wm_optimizer.step()
+        self.wm_optimizer.zero_grad()
+        self.actor_optimizer.zero_grad()
+        self.critic_optimizer.zero_grad()
         # self.seq_scheduler.step(loss.item())
 
         if self.batch_count % 25 == 0:
