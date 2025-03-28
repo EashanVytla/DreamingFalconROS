@@ -54,7 +54,7 @@ critic_model:
   output_dim: 1
   input_dim: 12
   activation: relu
-  discount_factor: 0.95
+  discount_factor: 0.995 # CHANGED
   lambda_val: 0.95
   hard_update: 100
 
@@ -67,11 +67,11 @@ actor_model:
 
 behavior_learning:
   start_point: 60 # num of batch updates of world model to wait to start behavior steps
-  critic_lr: 0.0003
-  actor_lr: 0.00004
+  critic_lr: 0.00003
+  actor_lr: 0.000004
   batch_size: 32
   horizon: 32
-  nu: 0.0001
+  nu: 0.000001
 
 training: 
   num_epochs: 64

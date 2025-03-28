@@ -21,6 +21,7 @@ from datetime import datetime
 import copy
 import json
 import threading
+import torch.nn.functional as F
 
 # THIS IS A TEST COMMENT
 
@@ -341,7 +342,7 @@ class Learner():
         
         v = [self.critic_copy(traj[-1])]
         for t in range(len(traj)-3, -1, -1):
-            v_t = self.world_model.compute_reward(traj[t], self.target_state, acts[t], 0.5) + \
+            v_t = self.world_model.compute_reward(traj[t], self.target_state, acts[t]).unsqueeze(-1) + \
                     self.config.critic_model.discount_factor * (((1 - self.config.critic_model.lambda_val) * self.critic_copy(traj[t+1]) + \
                     self.config.critic_model.lambda_val * v[-1]))
             v.append(v_t)
@@ -349,8 +350,8 @@ class Learner():
         lambda_val = torch.stack(v, dim=1)
         
         critic_val = torch.stack([self.critic(traj[x]) for x in range(len(traj)-1)], dim=1)
-        critic_loss = torch.square(critic_val - lambda_val.detach()).sum(1).mean()
-
+        critic_loss = F.smooth_l1_loss(critic_val, lambda_val.detach(), reduction='mean')
+        
         critic_loss.backward(inputs=[param for param in self.critic.parameters()])
         torch.nn.utils.clip_grad_norm_(self.critic.parameters(), 100)
 
@@ -366,10 +367,6 @@ class Learner():
         self.actor_optimizer.step()
         self.critic_optimizer.step()
 
-        self.actor_optimizer.zero_grad()
-        self.critic_optimizer.zero_grad()
-        self.wm_optimizer.zero_grad()
-
         if self.beh_updates % 25 == 0:
             self.writer.add_scalar("Behavior/critic_loss", critic_loss, self.beh_updates)
             self.writer.add_scalar("Behavior/actor_loss", actor_loss, self.beh_updates)
@@ -382,7 +379,7 @@ class Learner():
             self.writer.add_scalar("Behavior/critic_grad", critic_grad, self.beh_updates)
             self.writer.add_scalar("Behavior/actor_grad", actor_grad, self.beh_updates)
 
-            total_reward = sum([self.world_model.compute_reward(traj[t], self.target_state, act, 0.5).item() for t, act in enumerate(acts)])
+            total_reward = sum([self.world_model.compute_reward(traj[t], self.target_state, act).mean() for t, act in enumerate(acts)])
             self.writer.add_scalar('Reward/total', total_reward, self.beh_updates)
 
         if self.beh_updates % self.config.critic_model.hard_update == 0:
@@ -391,6 +388,10 @@ class Learner():
             print("Done hard updating")
 
         self.beh_updates += 1
+
+        self.actor_optimizer.zero_grad()
+        self.critic_optimizer.zero_grad()
+        self.wm_optimizer.zero_grad()
 
     def wm_train_step(self):
         dts, states, actions = self.buffer.sample(self.config.training.batch_size, 8)
@@ -409,9 +410,6 @@ class Learner():
         loss.backward()
         torch.nn.utils.clip_grad_norm_(self.world_model.parameters(), max_norm=50.0)
         self.wm_optimizer.step()
-        self.wm_optimizer.zero_grad()
-        self.actor_optimizer.zero_grad()
-        self.critic_optimizer.zero_grad()
         # self.seq_scheduler.step(loss.item())
 
         if self.batch_count % 25 == 0:
@@ -423,6 +421,10 @@ class Learner():
             self.writer.add_scalar("Loss/train", loss, self.batch_count)
         
         self.batch_count += 1
+
+        self.wm_optimizer.zero_grad()
+        self.actor_optimizer.zero_grad()
+        self.critic_optimizer.zero_grad()
         
 
 def wm_train_process_fn(buffer, actor, config_file, stop_event):

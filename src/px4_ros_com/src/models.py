@@ -181,26 +181,17 @@ class WorldModel(nn.Module):
         print(f"forces mean: {self.forces_mean}")
         print(f"forces std: {self.forces_std}")
 
-    def compute_reward(self, state, target_state, control_input, tolerance):
-        pos_error = torch.norm(state[:,0:3] - target_state[0:3].unsqueeze(0))
-        vel_error = torch.norm(state[:,3:6] - target_state[3:6].unsqueeze(0))
-        att_error = torch.norm(state[:,6:9] - target_state[6:9].unsqueeze(0))
+    def compute_reward(self, state, target_state, control_input):
+        vel_rew = torch.norm((state[:,3:6] - target_state[3:6]).unsqueeze(0))
+        energy_rew = control_input.sum(dim=-1)
+        stab_rew = torch.norm(state[:,9:12] - target_state[9:12].unsqueeze(0))
         
-        w_p = 0.0   # weight for position error
-        w_v = 0.005   # weight for velocity error
-        w_a = 0.0   # weight for attitude error
-        w_c = 0.0005   # weight for control effort
+        w_v = 0.01
+        w_e = 0.001
+        w_s = 0.001
         
         # Base reward: negative of weighted error terms
-        reward = -(w_p * pos_error + w_v * vel_error + w_a * att_error)
-        
-        # Penalize high control inputs
-        control_penalty = w_c * torch.norm(control_input)
-        reward -= control_penalty
-        
-        # Bonus if within a tolerance threshold (stability bonus)
-        if vel_error.item() < tolerance:
-            reward += 0.005
+        reward = -(w_v * vel_rew + w_e * energy_rew + w_s * stab_rew)
         
         return reward
 
