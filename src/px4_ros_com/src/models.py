@@ -9,7 +9,7 @@ import copy
 from torch import multiprocessing as mp
 
 class MLP(nn.Module):
-    def __init__(self, input_dim, hidden_dims, output_dim, activation='relu'):
+    def __init__(self, input_dim, hidden_dims, output_dim, activation='relu', dropout_rate=0.0):
         super(MLP, self).__init__()
         
         layers = []
@@ -30,6 +30,10 @@ class MLP(nn.Module):
             else:
                 print("Don't know that activation! Defaulting to RELU.")
                 layers.append(nn.ReLU())
+            
+                        # Add dropout after activation (except for the last hidden layer)
+            if dropout_rate > 0.0:
+                layers.append(nn.Dropout(dropout_rate))
 
         layers.append(nn.Linear(hidden_dims[-1], output_dim))
         
@@ -52,43 +56,34 @@ class Actor(torch.nn.Module):
         
         self.shared_layers = nn.ModuleList(layers)
         self.mu = torch.nn.Linear(dims[-1], config.actor_model.output_dim)
-        self.log_sigma = torch.nn.Linear(dims[-1], config.actor_model.output_dim)
+        self.config = config
 
         ctx = mp.get_context('spawn')
         self.lock = ctx.Lock()
 
-    def forward(self, x_t):
+    def forward(self, x_t, std=0.6):
         with self.lock:
             out = x_t
             for layer in self.shared_layers:
                 out = layer(out)
 
-            # --- Start of code adapted from: Physics Informed Model Based RL
-            # Author: Adithya Ramesh
-            # Date: May 14 2023
-            # Source: https://github.com/adi3e08/Physics_Informed_Model_Based_RL/blob/main/models/mbrl.py ---
+            if torch.isnan(out).any(): print("nan actor out")
 
             mu = self.mu(out)
-            log_sigma = self.log_sigma(out)
-            
-            log_sigma = torch.clamp(log_sigma, min=-20.0, max=2.0)
-            sigma = torch.exp(log_sigma)
 
-            if torch.isnan(sigma).any():
-                print(f"sigma nan! {sigma}")
-                return None, None
+            if torch.isnan(mu).any(): print("nan actor mu")
             
-            dist = torch.distributions.Normal(mu, sigma)
+            dist = torch.distributions.Normal(mu, std)
             x_t = dist.rsample()
             action = torch.tanh(x_t)
+
+            if torch.isnan(action).any(): print("nan actor action")
 
             log_prob = dist.log_prob(x_t).sum(1)
             log_prob -= torch.log(torch.clamp(1-action.pow(2), min=1e-6)).sum(1)
         
             return action, log_prob
-        
-            # --- End of adapted code ---
-    
+
 class Critic(nn.Module):
     def __init__(self, config, device):
         super(Critic, self).__init__()
@@ -120,7 +115,7 @@ class WorldModel(nn.Module):
         
         self.I_inv = torch.inverse(self.I)
 
-        self.model = MLP(config.force_model.input_dim, hidden_dims, config.force_model.output_dim, config.force_model.activation)
+        self.model = MLP(config.force_model.input_dim, hidden_dims, config.force_model.output_dim, config.force_model.activation, config.force_model.dropout_rate)
         # self.init_weights()
         self.device = device
 
@@ -278,7 +273,7 @@ class WorldModel(nn.Module):
                         Body Rotation Rates: p, q, r (6:9)
         '''
         inp = torch.cat((actuator_input, x_t[:, 3:12]), dim=1)
-        forces_norm = self.model(inp)
+        forces_norm = torch.tanh(self.model(inp))
 
         if self.norm_config.norm:
             x_t_dn = torch.zeros_like(x_t)
@@ -298,6 +293,34 @@ class WorldModel(nn.Module):
         return self.six_dof(x_t_dn if self.norm_config.norm else x_t, dt, forces)
 
     def loss(self, pred, truth):
+        """
+        Compute weighted Huber loss between predictions and ground truth.
+        Weights are defined internally based on the importance of different state dimensions.
+        
+        Args:
+            pred: Predicted states [batch_size, state_dim]
+            truth: Ground truth states [batch_size, state_dim]
+        
+        Returns:
+            Weighted loss value (scalar)
+        """
+        # Define weights for different state components
+        # Format: [position(x,y,z), velocity(u,v,w), attitude(phi,theta,psi), angular_vel(p,q,r)]
+        weights = torch.tensor([
+            0.1, 0.1, 0.1,     # Position (xyz)
+            0.1, 0.1, 0.1,        # Velocity (uvw)
+            1.0, 1.0, 1.0,        # Attitude (euler angles)
+            5.0, 5.0, 5.0         # Angular velocity
+        ], device=pred.device)
+        
+        # Ensure weights has the right shape for broadcasting
+        weights = weights.view(1, -1)
+        
+        # Compute element-wise Huber loss
         huber_loss = F.smooth_l1_loss(pred, truth, reduction='none', beta=self._beta)
-
-        return torch.mean(huber_loss)
+        
+        # Apply weights
+        weighted_loss = huber_loss * weights
+        
+        # Return mean of weighted loss normalized by sum of weights
+        return torch.sum(weighted_loss) / torch.sum(weights)

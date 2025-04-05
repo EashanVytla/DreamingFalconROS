@@ -5,7 +5,7 @@ from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy, DurabilityPolicy
 from px4_msgs.msg import VehicleOdometry, ActuatorOutputs, ActuatorMotors
 import torch
-from utils import quat_to_euler, AttrDict, denormalize, unwrap_angle, hard_update
+from utils import quat_to_euler, AttrDict, denormalize, unwrap_angle, hard_update, diff_flag
 from replay_buffer import ReplayBuffer
 import yaml
 from torch import multiprocessing as mp
@@ -150,6 +150,19 @@ class Learner():
 
         self.config = AttrDict.from_dict(config_dict)
 
+        pos_threshold = 100.0  # Max position deviation in meters
+        vel_threshold = 30.0   # Max velocity in m/s
+        att_threshold_z = 6.0   # Max attitude (rad)
+        att_threshold_xy = 1.5
+        ang_vel_threshold = 2.0  # Max angular velocity (rad/s)
+
+        self.thresholds = torch.tensor([
+            pos_threshold, pos_threshold, pos_threshold,     # Position (xyz)
+            vel_threshold, vel_threshold, vel_threshold,        # Velocity (uvw)
+            att_threshold_xy, att_threshold_xy, att_threshold_z,        # Attitude (euler angles)
+            ang_vel_threshold, ang_vel_threshold, ang_vel_threshold         # Angular velocity
+        ], device=self.config.device)
+
         self.device = self.config.device
         self.norm_ranges = self.config.normalization
 
@@ -228,6 +241,7 @@ class Learner():
         self.writer.close()
 
     def validate(self, save_to_table=False):
+        self.world_model.eval()
         with torch.no_grad():
             batch_size = 1
             if save_to_table:
@@ -310,6 +324,7 @@ class Learner():
 
                 except Exception as e:
                     print(f"Error saving results: {e}")
+        self.world_model.train()
 
     def beh_train_step(self):
         _, states, _ = self.buffer.sample(self.config.behavior_learning.batch_size, 1)
@@ -318,25 +333,42 @@ class Learner():
         log_probs = []
         acts = []
         dts = torch.ones((states.shape[0],1), dtype=torch.float32, device=self.device) * self.config.physics.refresh_rate
+        c_masks = [torch.ones((states.shape[0], 1), dtype=torch.float32, device=self.device)]
 
         for t in range(self.config.behavior_learning.horizon):
+            c_mask = diff_flag(traj[t], self.thresholds) * c_masks[-1]
+            if (c_mask < 0.5).any():
+                print(f"Continue mask activated")
+
             if torch.isnan(traj[t]).any():
                 print(f"Nan detected in state! t={t}")
-                return
+            # print(f"Traj[t] = {traj[t]}")
             act, log_prob = self.actor(traj[t])
+            act = c_mask * act
+            log_prob = c_mask * log_prob
 
             if act is None or log_prob is None:
                 print(f"None act or log_prob t={t}")
-                return
 
             if torch.isnan(act).any():
                 print(f"Nan detected in action t={t}!")
-                return
+
+            self.world_model.eval()
+            next_state = self.world_model.predict(dts, traj[-1], act) * c_mask
+            self.world_model.train()
+
+            if torch.isnan(next_state).any():
+            # if True:
+                print(f"Nan detected in next state! t={t}")
+                print(f"Act: {act}")
+                print(f"Traj: {traj[-1]}")
+                print(f"Next state: {next_state}")
             
             # If we have to normalize, modify this
-            traj.append(self.world_model.predict(dts, traj[-1], act))
+            traj.append(next_state)
             log_probs.append(log_prob)
             acts.append(act)
+            c_masks.append(c_mask)
 
         log_probs = torch.stack(log_probs, dim=1).unsqueeze(-1)
         
@@ -345,7 +377,11 @@ class Learner():
             v_t = self.world_model.compute_reward(traj[t], self.target_state, acts[t]).unsqueeze(-1) + \
                     self.config.critic_model.discount_factor * (((1 - self.config.critic_model.lambda_val) * self.critic_copy(traj[t+1]) + \
                     self.config.critic_model.lambda_val * v[-1]))
-            v.append(v_t)
+            # print(f"State at t={t}: {traj[t]}")
+            
+            masked_v = (c_masks[t] * v_t) + (1-c_masks[t]) * -100
+            # print(f"Masked V: {masked_v}")
+            v.append(masked_v)
         v.reverse()
         lambda_val = torch.stack(v, dim=1)
         
@@ -362,7 +398,7 @@ class Learner():
         total_actor_loss = actor_loss + entropy_pen
 
         total_actor_loss.backward(inputs=[param for param in self.actor.parameters()])
-        torch.nn.utils.clip_grad_norm_(self.actor.parameters(), 100)
+        # torch.nn.utils.clip_grad_norm_(self.actor.parameters(), 100)
 
         self.actor_optimizer.step()
         self.critic_optimizer.step()
