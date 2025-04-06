@@ -1,4 +1,4 @@
-device: cuda
+device: cpu
 timeout: 2400
 chirp_timeout: 2400 #1200
 
@@ -70,11 +70,11 @@ actor_model:
 
 behavior_learning:
   start_point: 800 # num of batch updates of world model to wait to start behavior steps
-  critic_lr: 0.0003
-  actor_lr: 0.000004
+  critic_lr: 0.005
+  actor_lr: 0.005
   batch_size: 32
   horizon: 32
-  nu: 0.00001
+  nu: 0.001
 
 training: 
   num_epochs: 64
@@ -87,7 +87,7 @@ training:
   seq_sch_thresh: 0.01
   loss_scaler: 1280
   beta: 10
-  weight_decay: 0.0
+  weight_decay: 0.0001
   cos_lr: False
 
 behavior:  

@@ -71,7 +71,7 @@ actor_model:
 behavior_learning:
   start_point: 800 # num of batch updates of world model to wait to start behavior steps
   critic_lr: 0.0003
-  actor_lr: 0.000004
+  actor_lr: 0.00004
   batch_size: 32
   horizon: 32
   nu: 0.00001
