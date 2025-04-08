@@ -1,6 +1,7 @@
 import torch
 import numpy as np
 from scipy.spatial.transform import Rotation as R
+import torch.nn.functional as F
 import math
 
 def quat_to_euler(q: np.array, device) -> torch.Tensor:
@@ -29,8 +30,8 @@ def diff_flag(x, thresholds, beta=10.0):
     smooth_max = (1.0 / beta) * torch.log(torch.sum(torch.exp(beta * diff), dim=1, keepdim=True))
     
     # Use a sigmoid to get an output between 0 and 1
-    flag = torch.sigmoid(smooth_max)
-    return 1 - flag
+    flag = F.softplus(smooth_max)
+    return flag
 
 def check_components_over_threshold(x, thresholds):
     """
