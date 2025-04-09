@@ -75,7 +75,7 @@ class Actor(torch.nn.Module):
             
             dist = torch.distributions.Normal(mu, std)
             x_t = dist.rsample()
-            action = torch.tanh(x_t)
+            action = torch.tanh(x_t) * 0.7 + 0.3
 
             if torch.isnan(action).any(): print("nan actor action")
 

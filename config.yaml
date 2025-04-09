@@ -1,6 +1,6 @@
 device: cpu
 timeout: 2400
-chirp_timeout: 2400 #1200
+chirp_timeout: 1200 #1200
 
 physics: 
   refresh_rate: 0.05 # This is in ms 10hz
@@ -70,11 +70,11 @@ actor_model:
 
 behavior_learning:
   start_point: 800 # num of batch updates of world model to wait to start behavior steps
-  critic_lr: 0.01
-  actor_lr: 0.01
+  critic_lr: 0.0003
+  actor_lr: 0.0003
   batch_size: 32
   horizon: 32
-  nu: 1.0
+  nu: 0.00001
 
 training: 
   num_epochs: 64
