@@ -5,7 +5,7 @@ from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy, DurabilityPolicy
 from px4_msgs.msg import VehicleOdometry, ActuatorOutputs, ActuatorMotors
 import torch
-from utils import quat_to_euler, AttrDict, denormalize, unwrap_angle, hard_update, diff_flag
+from utils import quat_to_euler, AttrDict, denormalize, unwrap_angle, hard_update, diff_flag, flag
 from replay_buffer import ReplayBuffer
 import yaml
 from torch import multiprocessing as mp
@@ -336,7 +336,7 @@ class Learner():
         c_masks = [torch.ones((states.shape[0], 1), dtype=torch.float32, device=self.device)]
 
         for t in range(self.config.behavior_learning.horizon):
-            c_mask = diff_flag(traj[t], self.thresholds) * c_masks[-1]
+            c_mask = flag(traj[t], self.thresholds) * c_masks[-1]
             if (c_mask < 0.5).any():
                 print(f"Continue mask activated")
 
@@ -377,6 +377,7 @@ class Learner():
             v_t = self.world_model.compute_reward(traj[t], self.target_state, acts[t]).unsqueeze(-1) + \
                     self.config.critic_model.discount_factor * (((1 - self.config.critic_model.lambda_val) * self.critic_copy(traj[t+1]) + \
                     self.config.critic_model.lambda_val * v[-1]))
+            
             # print(f"State at t={t}: {traj[t]}")
             
             masked_v = (c_masks[t] * v_t) + (1-c_masks[t]) * -100
@@ -391,7 +392,7 @@ class Learner():
         critic_loss.backward(inputs=[param for param in self.critic.parameters()])
         torch.nn.utils.clip_grad_norm_(self.critic.parameters(), 100)
 
-        actor_loss = -1.0 * lambda_val.sum(1).mean()
+        actor_loss = -torch.mean(torch.sum(log_probs * (lambda_val - critic_val).detach(), dim=1))
 
         entropy_pen = (self.config.behavior_learning.nu*log_probs).sum(1).mean()
 
