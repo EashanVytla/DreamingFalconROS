@@ -1,6 +1,6 @@
 device: cuda
 timeout: 2400
-chirp_timeout: 2400 #1200
+chirp_timeout: 1200 #1200
 
 physics: 
   refresh_rate: 0.05 # This is in ms 10hz

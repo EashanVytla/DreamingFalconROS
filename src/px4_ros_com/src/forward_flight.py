@@ -3,7 +3,8 @@
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy, DurabilityPolicy
-from px4_msgs.msg import OffboardControlMode, TrajectorySetpoint, VehicleCommand, VehicleLocalPosition, VehicleStatus
+from px4_msgs.msg import OffboardControlMode, TrajectorySetpoint, VehicleCommand, VehicleLocalPosition, VehicleStatus, VehicleOdometry, ActuatorOutputs
+from message_filters import Subscriber, ApproximateTimeSynchronizer
 import scipy
 import numpy as np
 from enum import Enum, auto
@@ -14,11 +15,16 @@ from utils import AttrDict, l2_dist
 from itertools import product
 import time
 import random
+import torch
+import pandas as pd
+import utils
+from scipy.spatial.transform import Rotation as R
+
 
 class DroneState(Enum):
     ARMING = auto()
     TAKEOFF = auto()
-    CHIRP = auto()
+    FORWARD_FLIGHT = auto()
     RESET = auto()
     LAND = auto()
 
@@ -26,22 +32,15 @@ class OffboardControl(Node):
     """Node for controlling a vehicle in offboard mode."""
 
     def __init__(self) -> None:
-        super().__init__('offboard_control_chirp')
+        super().__init__('offboard_control_forward_flight')
 
-        self.declare_parameter('config_file', 'config.yaml')
-        self.config_file = self.get_parameter('config_file').value
-
-        with open(self.config_file, 'r') as file:
+        with open("config.yaml", 'r') as file:
             config_dict = yaml.safe_load(file)
 
         self.config = AttrDict.from_dict(config_dict)
 
-        self._mass = self.config.physics.mass #kg
-        self._g = self.config.physics.g
-
         # State management
         self.current_state = DroneState.ARMING
-        self.cache_state = DroneState.CHIRP
         self.target_takeoff_height = -10.0  # Target height for takeoff
         self.takeoff_height_threshold = -9.8  # Height at which takeoff is considered complete
         self.landing_height_threshold = -0.2  # Height at which landing is considered complete
@@ -49,15 +48,7 @@ class OffboardControl(Node):
         self.origin = np.array([0.0, 0.0, self.target_takeoff_height], dtype=np.float32)
         self.prod_cnt = 0
 
-        # Chirp configuration
-        self.chirp_x = scipy.signal.chirp(t=np.arange(0, 50, self.config.physics.refresh_rate), f0=0.1, t1=50, f1=2, method="linear")
-        self.chirp_y = scipy.signal.chirp(t=np.arange(0, 50, self.config.physics.refresh_rate), f0=0.2, t1=50, f1=3, method="linear")
-        self.chirp_z = scipy.signal.chirp(t=np.arange(0, 50, self.config.physics.refresh_rate), f0=0.3, t1=50, f1=4, method="linear") - 9.8
-        self.chirp_yaw = 2 * math.pi * scipy.signal.chirp(t=np.arange(0, 50, self.config.physics.refresh_rate), f0=0.25, t1=50, f1=2.5, method="linear")
         self.steady_velo = 2.0
-        self.chirp_counter = 0
-        self.chirp_bool = [combo for combo in product([True, False], repeat=9) if combo != (False,)*9]
-        random.shuffle(self.chirp_bool)
 
         # Configure QoS profile for publishing and subscribing
         qos_profile = QoSProfile(
@@ -74,6 +65,29 @@ class OffboardControl(Node):
             TrajectorySetpoint, '/fmu/in/trajectory_setpoint', qos_profile)
         self.vehicle_command_publisher = self.create_publisher(
             VehicleCommand, '/fmu/in/vehicle_command', qos_profile)
+        
+        self.odometry_subscriber = Subscriber(
+            self,
+            VehicleOdometry,
+            'fmu/out/vehicle_odometry',
+            qos_profile=qos_profile,
+        )
+
+        self.actuator_subscriber = Subscriber(
+            self,
+            ActuatorOutputs,
+            'fmu/out/actuator_outputs',
+            qos_profile=qos_profile,
+        )
+
+        self.time_sync = ApproximateTimeSynchronizer(
+            [self.odometry_subscriber, self.actuator_subscriber],
+            queue_size=5,
+            slop=0.05,
+            allow_headerless=True
+        )
+
+        self.time_sync.registerCallback(self.data_callback)
 
         # Create subscribers
         self.vehicle_local_position_subscriber = self.create_subscription(
@@ -93,6 +107,85 @@ class OffboardControl(Node):
 
         # Create a timer to publish control commands
         self.timer = self.create_timer(self.config.physics.refresh_rate, self.timer_callback)
+        self.last_timestamp = None
+        self.device = self.config.device
+        self.start_time = time.time()
+        self.start_act = False
+        self.state_dim = self.config.force_model.state_dim
+        self.action_dim = self.config.force_model.action_dim
+        self.device = self.config.device
+
+        '''
+        State:
+            1) Position (NED) 0-3
+            2) Velocity (body) 12-15
+            5) Attitude (Euler) 6-9
+            6) Angular Velocity (body) 9-12
+        '''
+
+        self.state = torch.zeros((12), dtype=torch.float32, device=self.device)
+        self.action = torch.zeros((self.action_dim), dtype=torch.float32, device=self.device)
+
+
+
+    def data_callback(self, odo_msg, act_msg):
+        current_timestamp = odo_msg.timestamp
+        dt = 0.0
+        if self.last_timestamp is not None:
+            dt = (current_timestamp - self.last_timestamp) / 1e6
+            if (dt < self.config.physics.refresh_rate - (0.05 * self.config.physics.refresh_rate)) or self.current_state != DroneState.FORWARD_FLIGHT:
+                return
+
+        self.state[0:3] = torch.tensor(odo_msg.position, dtype=torch.float32, device=self.device)
+
+        self.state[3:6] = torch.matmul(
+            torch.tensor(R.from_quat(odo_msg.q, scalar_first=True).as_matrix().T, dtype=torch.float32, device=self.device),
+            torch.tensor(odo_msg.velocity, dtype=torch.float32, device=self.device)
+        )
+
+        self.state[6:9] = utils.quat_to_euler(odo_msg.q, device=self.device)
+
+        if not hasattr(self, 'prev_yaw'):
+            self.prev_yaw = self.state[8].clone()
+        else:
+            self.state[8] = utils.unwrap_angle(self.state[8], self.prev_yaw)
+            self.prev_yaw = self.state[8].clone()
+
+        self.state[9:12] = torch.tensor(odo_msg.angular_velocity, dtype=torch.float32, device=self.device)
+
+        self.action = torch.tensor(act_msg.output[:4], dtype=torch.float32, device=self.device)
+
+        # Log data to CSV file
+        if not hasattr(self, 'csv_file'):
+            import csv
+            import os
+            log_dir = os.path.join(os.getcwd(), "flight_logs")
+            os.makedirs(log_dir, exist_ok=True)
+            timestamp = time.strftime("%Y%m%d-%H%M%S")
+            self.csv_file = open(f"{log_dir}/flight_data_{timestamp}.csv", 'w', newline='')
+            self.csv_writer = csv.writer(self.csv_file)
+            # Write header
+            self.csv_writer.writerow([
+                'timestamp', 'dt',
+                'x', 'y', 'z',  # Position
+                'vx', 'vy', 'vz',  # Velocity
+                'roll', 'pitch', 'yaw',  # Attitude
+                'roll_rate', 'pitch_rate', 'yaw_rate',  # Angular rates
+                'motor1', 'motor2', 'motor3', 'motor4'  # Motor outputs
+            ])
+        
+        # Write data row
+        self.csv_writer.writerow([
+            current_timestamp, dt,
+            *self.state.cpu().numpy().tolist(),  # Unpack all state values
+            *self.action.cpu().numpy().tolist()  # Unpack all action values
+        ])
+        
+        # Ensure data is written to disk periodically
+        if self.publish_counter % 100 == 0:
+            self.csv_file.flush()
+        
+        self.last_timestamp = current_timestamp
 
     def vehicle_local_position_callback(self, vehicle_local_position):
         """Callback function for vehicle_local_position topic subscriber."""
@@ -125,15 +218,15 @@ class OffboardControl(Node):
         self.publish_vehicle_command(VehicleCommand.VEHICLE_CMD_NAV_LAND)
         self.get_logger().info("Switching to land mode", throttle_duration_sec=1)
 
-    def publish_offboard_control_heartbeat_signal(self, direct_act=False):
+    def publish_offboard_control_heartbeat_signal(self):
         """Publish the offboard control mode."""
         msg = OffboardControlMode()
-        msg.position = not direct_act
-        msg.velocity = False
+        msg.position = False
+        msg.velocity = True
         msg.acceleration = False
         msg.attitude = False
         msg.body_rate = False
-        msg.direct_actuator = direct_act
+        msg.direct_actuator = False
         msg.timestamp = int(self.get_clock().now().nanoseconds / 1000)
         self.offboard_control_mode_publisher.publish(msg)
 
@@ -150,10 +243,17 @@ class OffboardControl(Node):
 
     def publish_rate_setpoint(self, ax: float, ay: float, az: float, yaw: float, vx=0, vy=0, vz=0):
         msg = TrajectorySetpoint()
-        msg.position = [math.nan, math.nan, math.nan]
         msg.velocity = [vx, vy, vz]
         msg.acceleration = [ax, ay, az]
         msg.yaw = yaw
+        msg.timestamp = int(self.get_clock().now().nanoseconds / 1000)
+        self.trajectory_setpoint_publisher.publish(msg)
+
+    def publish_velo_setpoint(self, vx=0.0, vy=0.0, vz=0.0):
+        msg = TrajectorySetpoint()
+        msg.position = [math.nan, math.nan, math.nan]
+        msg.velocity = [vx, vy, vz]
+        msg.yaw = 0.0
         msg.timestamp = int(self.get_clock().now().nanoseconds / 1000)
         self.trajectory_setpoint_publisher.publish(msg)
 
@@ -194,27 +294,17 @@ class OffboardControl(Node):
         print(f"Dist to target altitude: {dist}")
         
         if dist < 1.0:
-            self.get_logger().info("Takeoff complete, starting chirp")
-            self.current_state = DroneState.CHIRP
+            self.get_logger().info("Takeoff complete, starting forward flight")
+            self.current_state = DroneState.FORWARD_FLIGHT
             self.get_logger().set_level(rclpy.logging.LoggingSeverity.ERROR)
 
-    def handle_chirp_state(self, chirp_x: bool, chirp_y: bool, chirp_z: bool, vx: float, vy: float, vz: float, yaw: bool):
-        """Handle the CHIRP state behavior"""
-        if self.chirp_counter >= len(self.chirp_x):
-            self.get_logger().set_level(rclpy.logging.LoggingSeverity.INFO)
-            self.current_state = DroneState.LAND
-            return
-
-        self.publish_rate_setpoint(
-            ax=self.chirp_x[self.chirp_counter] if chirp_x else 0.0,
-            ay=self.chirp_y[self.chirp_counter] if chirp_y else 0.0,
-            az=self.chirp_z[self.chirp_counter] if chirp_z else 0.0,
+    def handle_ff_state(self, vx: float, vy: float, vz: float):
+        """Handle the FORWARD_FLIGHT state behavior"""
+        self.publish_velo_setpoint(
             vx = vx,
             vy = vy,
-            vz = vz,
-            yaw=self.chirp_yaw[self.chirp_counter] if yaw else 0.0
+            vz = vz
         )
-        self.chirp_counter += 1
 
     def handle_land_state(self):
         """Handle the LAND state behavior"""
@@ -237,65 +327,15 @@ class OffboardControl(Node):
 
     def timer_callback(self) -> None:
         """Callback function for the timer."""
-        if time.time() - self.start_time > self.config.chirp_timeout:
-            self.publish_offboard_control_heartbeat_signal(direct_act=True)
-            return
-        else:
-            self.publish_offboard_control_heartbeat_signal()
-
-        if self.current_state == DroneState.CHIRP and abs(self.vehicle_local_position.z) < 1.0:
-            print("Too close to ground. Resetting.")
-            self.cache_state = DroneState.CHIRP
-            self.current_state = DroneState.RESET
+        self.publish_offboard_control_heartbeat_signal()
 
         # State machine handling
         if self.current_state == DroneState.ARMING:
             self.handle_arming_state()
         elif self.current_state == DroneState.TAKEOFF:
             self.handle_takeoff_state()
-        elif self.current_state == DroneState.CHIRP:
-            if self.chirp_counter > 50: # 5 seconds
-                print("Resetting")
-                self.cache_state = DroneState.CHIRP
-                self.current_state = DroneState.RESET
-                
-                self.chirp_counter = 0
-                self.prod_cnt += 1
-                num_combos = len(self.chirp_bool)
-                self.prod_cnt %= num_combos
-
-                if self.prod_cnt % 64 == 0 and self.prod_cnt != 0:
-                    self.steady_velo += 2.0
-                
-            if self.chirp_bool[self.prod_cnt][0]:
-                vx = self.steady_velo
-            elif self.chirp_bool[self.prod_cnt][3]:
-                vx = -self.steady_velo
-            else:
-                vx = 0.0
-
-            if self.chirp_bool[self.prod_cnt][1]:
-                vy = self.steady_velo
-            elif self.chirp_bool[self.prod_cnt][4]:
-                vy = -self.steady_velo
-            else:
-                vy = 0.0
-
-            if self.chirp_bool[self.prod_cnt][2]:
-                vz = self.steady_velo
-            elif self.chirp_bool[self.prod_cnt][5]:
-                vz = -self.steady_velo
-            else:
-                vz = 0.0
-
-            self.handle_chirp_state(chirp_x=self.chirp_bool[self.prod_cnt][6], 
-                                    chirp_y=self.chirp_bool[self.prod_cnt][7], 
-                                    chirp_z=self.chirp_bool[self.prod_cnt][8], 
-                                    vx = vx,
-                                    vy = vy,
-                                    vz = vz,
-                                    yaw=True
-                                    )
+        elif self.current_state == DroneState.FORWARD_FLIGHT:
+            self.handle_ff_state(vx=self.steady_velo, vy=0.0, vz=0.0)
         elif self.current_state == DroneState.RESET:
             self.handle_reset_state()
         elif self.current_state == DroneState.LAND:
@@ -305,16 +345,18 @@ import sys
 def main(args=None) -> None:
     print('Starting offboard control node...')
     rclpy.init(args=args)
-    start_time = time.time()
 
     offboard_control = OffboardControl()
-    timeout = offboard_control.config.timeout
+
+    timeout = 3.2
 
     while rclpy.ok():
+        if offboard_control.current_state != DroneState.FORWARD_FLIGHT:
+            start_time = time.time()
         rclpy.spin_once(offboard_control)
 
         if time.time() - start_time > timeout:
-            print("\nTimeout reached! Shutting down chirp.")
+            print("\nTimeout reached! Shutting down forward flight.")
             break
 
     offboard_control.destroy_node()
