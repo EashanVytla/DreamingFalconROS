@@ -1,6 +1,6 @@
-device: cpu
+device: cuda
 timeout: 2400
-chirp_timeout: 60 #1200
+chirp_timeout: 2400 #1200
 
 physics: 
   refresh_rate: 0.05 # This is in ms 10hz
@@ -18,8 +18,10 @@ physics:
 
 normalization:
   norm: False
-  velo_min: -10
-  velo_max: 10
+  pose_min: -25
+  pose_max: 25
+  velo_min: -12
+  velo_max: 12
   euler_min: -1.0
   euler_max: 1.0
   omega_min: -1.0
@@ -37,7 +39,7 @@ normalization:
 
 replay_buffer:
   capacity: 10000
-  start_learning: 1000
+  start_learning: 100
 
 force_model:
   hidden_layers: 2
@@ -48,6 +50,9 @@ force_model:
   action_dim: 4
   activation: relu
   dropout_rate: 0.1
+
+rnn_model:
+  history: 10
 
 critic_model:
   hidden_layers: 1
@@ -79,7 +84,7 @@ behavior_learning:
 training: 
   num_epochs: 64
   batch_size: 64
-  lr: 0.0003
+  lr: 0.00001
   min_lr: 0.0075
   init_seq_len: 2
   max_seq_len: 2
@@ -87,7 +92,7 @@ training:
   seq_sch_thresh: 0.01
   loss_scaler: 1280
   beta: 10
-  weight_decay: 0.0
+  weight_decay: 0.0001
   cos_lr: False
 
 behavior:  

@@ -107,7 +107,7 @@ class OffboardControl(Node):
 
         # Create a timer to publish control commands
         self.timer = self.create_timer(self.config.physics.refresh_rate, self.timer_callback)
-        self.last_timestamp = None
+        self.last_timestamp = 0.0
         self.device = self.config.device
         self.start_time = time.time()
         self.start_act = False
@@ -131,11 +131,11 @@ class OffboardControl(Node):
     def data_callback(self, odo_msg, act_msg):
         current_timestamp = odo_msg.timestamp
         dt = 0.0
-        if self.last_timestamp is not None:
-            dt = (current_timestamp - self.last_timestamp) / 1e6
-            if (dt < self.config.physics.refresh_rate - (0.05 * self.config.physics.refresh_rate)) or self.current_state != DroneState.FORWARD_FLIGHT:
-                return
+        dt = (current_timestamp - self.last_timestamp) / 1e6
+        if (dt < self.config.physics.refresh_rate - (0.05 * self.config.physics.refresh_rate)) or self.current_state != DroneState.FORWARD_FLIGHT:
+            return
 
+        print("logging")
         self.state[0:3] = torch.tensor(odo_msg.position, dtype=torch.float32, device=self.device)
 
         self.state[3:6] = torch.matmul(

@@ -22,16 +22,17 @@ class ReplayBuffer:
 
     def add(self, state: torch.Tensor, action: torch.Tensor, dt: float):
         with self.lock:
-            if self.norm_ranges.norm:
+            # if self.norm_ranges.norm:
+            if True:
                 norm_x_t = torch.zeros_like(state, device=self.device)
-                norm_x_t[0:3] = state[0:3]
+                norm_x_t[0:3] = normalize(state[0:3], self.norm_ranges.pose_min, self.norm_ranges.pose_max)
                 norm_x_t[3:6] = normalize(state[3:6], self.norm_ranges.velo_min, self.norm_ranges.velo_max)     # Velocity: +- 20
                 norm_x_t[6:9] = normalize(state[6:9], self.norm_ranges.euler_min, self.norm_ranges.euler_max)     # Euler Angles: +- pi
                 norm_x_t[9:12] = normalize(state[9:12], self.norm_ranges.omega_min, self.norm_ranges.omega_max)       # Rotation Rates: +- pi/4
             
             norm_act = normalize(action, self.norm_ranges.act_min, self.norm_ranges.act_max)
 
-            self.states[self.ptr.value, :] = norm_x_t if self.norm_ranges.norm else state
+            self.states[self.ptr.value, :] = norm_x_t #if self.norm_ranges.norm else state
             self.actions[self.ptr.value, :] = norm_act
             self.dt[self.ptr.value] = dt
 

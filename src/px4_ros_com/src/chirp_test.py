@@ -18,6 +18,7 @@ import random
 class DroneState(Enum):
     ARMING = auto()
     TAKEOFF = auto()
+    BOX = auto()
     CHIRP = auto()
     RESET = auto()
     LAND = auto()
@@ -52,9 +53,10 @@ class OffboardControl(Node):
         # Chirp configuration
         self.chirp_x = scipy.signal.chirp(t=np.arange(0, 50, self.config.physics.refresh_rate), f0=0.1, t1=50, f1=2, method="linear")
         self.chirp_y = scipy.signal.chirp(t=np.arange(0, 50, self.config.physics.refresh_rate), f0=0.2, t1=50, f1=3, method="linear")
-        self.chirp_z = scipy.signal.chirp(t=np.arange(0, 50, self.config.physics.refresh_rate), f0=0.3, t1=50, f1=4, method="linear") - 9.8
-        self.chirp_yaw = 2 * math.pi * scipy.signal.chirp(t=np.arange(0, 50, self.config.physics.refresh_rate), f0=0.25, t1=50, f1=2.5, method="linear")
-        self.steady_velo = 2.0
+        self.chirp_z = scipy.signal.chirp(t=np.arange(0, 50, self.config.physics.refresh_rate), f0=0.3, t1=50, f1=4, method="linear")
+        # self.chirp_yaw = math.pi * scipy.signal.chirp(t=np.arange(0, 50, self.config.physics.refresh_rate), f0=0.25, t1=50, f1=0.5, method="linear")
+        self.steady_velo = 6.0
+        self.yaw = math.pi
         self.chirp_counter = 0
         self.chirp_bool = [combo for combo in product([True, False], repeat=9) if combo != (False,)*9]
         random.shuffle(self.chirp_bool)
@@ -85,9 +87,10 @@ class OffboardControl(Node):
         self.offboard_setpoint_counter = 0
         self.vehicle_local_position = VehicleLocalPosition()
         self.vehicle_status = VehicleStatus()
-        self.takeoff_height = -5.0
 
         self.publish_counter = 0
+        self.moving = False
+        self.box_ctr = 0
         
         self.start_time = time.time()
 
@@ -129,8 +132,8 @@ class OffboardControl(Node):
         """Publish the offboard control mode."""
         msg = OffboardControlMode()
         msg.position = not direct_act
-        msg.velocity = False
-        msg.acceleration = False
+        msg.velocity = True
+        msg.acceleration = True
         msg.attitude = False
         msg.body_rate = False
         msg.direct_actuator = direct_act
@@ -155,6 +158,7 @@ class OffboardControl(Node):
         msg.acceleration = [ax, ay, az]
         msg.yaw = yaw
         msg.timestamp = int(self.get_clock().now().nanoseconds / 1000)
+        # print(f"Chirp: {msg}")
         self.trajectory_setpoint_publisher.publish(msg)
 
     def publish_vehicle_command(self, command, **params) -> None:
@@ -195,11 +199,44 @@ class OffboardControl(Node):
         
         if dist < 1.0:
             self.get_logger().info("Takeoff complete, starting chirp")
-            self.current_state = DroneState.CHIRP
+            self.current_state = DroneState.BOX
             self.get_logger().set_level(rclpy.logging.LoggingSeverity.ERROR)
 
-    def handle_chirp_state(self, chirp_x: bool, chirp_y: bool, chirp_z: bool, vx: float, vy: float, vz: float, yaw: bool):
+    def handle_box_state(self):
+        pos = np.array([self.vehicle_local_position.x, self.vehicle_local_position.y, self.vehicle_local_position.z, self.vehicle_local_position.heading], dtype=np.float32)
+        
+        targets = [np.array([25.0, 0.0, self.target_takeoff_height, math.pi/2]),
+                   np.array([25.0, 0.0, self.target_takeoff_height, math.pi]),
+                   np.array([25.0, 25.0, self.target_takeoff_height, math.pi]),
+                   np.array([25.0, 25.0, self.target_takeoff_height, -math.pi/2]), 
+                   np.array([0.0, 25.0, self.target_takeoff_height, -math.pi/2]),
+                   np.array([0.0, 25.0, self.target_takeoff_height, 0.0]),
+                   np.array([0.0, 0.0, self.target_takeoff_height, 0.0])]
+        dist = l2_dist(pos, targets[self.box_ctr])
+
+        self.publish_position_setpoint(targets[self.box_ctr][0], targets[self.box_ctr][1], targets[self.box_ctr][2], targets[self.box_ctr][3])
+
+        if dist < 1.0 and abs(pos[3] - targets[self.box_ctr][3]) < math.radians(5):
+            print(f"Box ctr: {self.box_ctr}")
+            if self.box_ctr >= len(targets)-1:
+                self.cache_state = DroneState.CHIRP
+                self.current_state = DroneState.RESET
+            self.box_ctr += 1
+        
+
+    def handle_chirp_state(self, chirp_x: bool, chirp_y: bool, chirp_z: bool, vx: float, vy: float, vz: float, yaw: float):
         """Handle the CHIRP state behavior"""
+        if abs(self.vehicle_local_position.heading - yaw) > math.radians(5) and not self.moving:
+            self.publish_position_setpoint(
+                x=self.origin[0].item(),
+                y=self.origin[1].item(),
+                z=self.origin[2].item(),
+                yaw=yaw
+            )
+            return
+        
+        self.moving = True
+        
         if self.chirp_counter >= len(self.chirp_x):
             self.get_logger().set_level(rclpy.logging.LoggingSeverity.INFO)
             self.current_state = DroneState.LAND
@@ -212,8 +249,10 @@ class OffboardControl(Node):
             vx = vx,
             vy = vy,
             vz = vz,
-            yaw=self.chirp_yaw[self.chirp_counter] if yaw else 0.0
+            # yaw=self.chirp_yaw[self.chirp_counter] if yaw else 0.0
+            yaw=yaw
         )
+
         self.chirp_counter += 1
 
     def handle_land_state(self):
@@ -230,8 +269,8 @@ class OffboardControl(Node):
         
         dist = l2_dist(pos, self.origin)
 
-        if dist > 2.0:
-            self.publish_position_setpoint(self.origin[0].item(), self.origin[1].item(), self.origin[2].item(), math.radians(90))
+        if dist > 1.5 or abs(self.vehicle_local_position.heading - math.pi) > math.radians(5):
+            self.publish_position_setpoint(self.origin[0].item(), self.origin[1].item(), self.origin[2].item(), math.pi)
         else:
             self.current_state = self.cache_state
 
@@ -243,7 +282,7 @@ class OffboardControl(Node):
         else:
             self.publish_offboard_control_heartbeat_signal()
 
-        if self.current_state == DroneState.CHIRP and abs(self.vehicle_local_position.z) < 1.0:
+        if self.current_state == DroneState.CHIRP and abs(self.vehicle_local_position.z) < 3.0:
             print("Too close to ground. Resetting.")
             self.cache_state = DroneState.CHIRP
             self.current_state = DroneState.RESET
@@ -253,9 +292,12 @@ class OffboardControl(Node):
             self.handle_arming_state()
         elif self.current_state == DroneState.TAKEOFF:
             self.handle_takeoff_state()
+        elif self.current_state == DroneState.BOX:
+            self.handle_box_state()
         elif self.current_state == DroneState.CHIRP:
             if self.chirp_counter > 50: # 5 seconds
                 print("Resetting")
+                self.moving = False
                 self.cache_state = DroneState.CHIRP
                 self.current_state = DroneState.RESET
                 
@@ -264,8 +306,10 @@ class OffboardControl(Node):
                 num_combos = len(self.chirp_bool)
                 self.prod_cnt %= num_combos
 
+                self.yaw = random.random() * 2 * math.pi - math.pi
+
                 if self.prod_cnt % 64 == 0 and self.prod_cnt != 0:
-                    self.steady_velo += 2.0
+                    self.steady_velo = max(self.steady_velo + 2.0, 16.0)
                 
             if self.chirp_bool[self.prod_cnt][0]:
                 vx = self.steady_velo
@@ -288,13 +332,16 @@ class OffboardControl(Node):
             else:
                 vz = 0.0
 
+            if self.chirp_counter < 64:
+                self.yaw = math.atan2(vy, vx)
+
             self.handle_chirp_state(chirp_x=self.chirp_bool[self.prod_cnt][6], 
                                     chirp_y=self.chirp_bool[self.prod_cnt][7], 
                                     chirp_z=self.chirp_bool[self.prod_cnt][8], 
                                     vx = vx,
                                     vy = vy,
                                     vz = vz,
-                                    yaw=True
+                                    yaw=self.yaw
                                     )
         elif self.current_state == DroneState.RESET:
             self.handle_reset_state()

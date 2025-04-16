@@ -138,10 +138,10 @@ def denormalize(val, min, max):
 
 
 def unwrap_angle(new_angle, prev_angle):
-    delta = new_angle - prev_angle
-    if delta > math.pi:
+    # Robust implementation that adjusts as many times as needed.
+    while new_angle - prev_angle > math.pi:
         new_angle -= 2 * math.pi
-    elif delta < -math.pi:
+    while new_angle - prev_angle < -math.pi:
         new_angle += 2 * math.pi
     return new_angle
 
