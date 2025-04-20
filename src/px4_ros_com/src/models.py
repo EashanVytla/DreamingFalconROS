@@ -158,7 +158,7 @@ class Cell(nn.Module):
         self.num_layers = num_layers
         
         # Create a GRU layer; `batch_first=True` expects input of shape (batch, seq_len, input_size)
-        self.cells = nn.LSTM(
+        self.cells = nn.RNN(
             input_size, 
             hidden_size, 
             num_layers, 
@@ -185,41 +185,51 @@ class Cell(nn.Module):
         """
         # Initialize hidden and cell states if not provided
         if hidden is None:
-            h0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size, device=x.device)
-            c0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size, device=x.device)
-            hidden = (h0, c0)
+            hidden = torch.zeros(self.num_layers, x.size(0), self.hidden_size, device=x.device)
+            # c0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size, device=x.device)
+            # hidden = (h0, c0)
         
         # LSTM forward pass.
         # out: tensor with shape (batch, seq_len, hidden_size)
         # (hn, cn): each with shape (num_layers, batch, hidden_size)
-        out, (hn, cn) = self.cells(x, hidden)
+        out, hidden = self.cells(x, hidden)
         
         # Use the output from the final time step for prediction
         last_time_step = out[:, -1, :]  # shape: (batch, hidden_size)
         out = self.fc(last_time_step)   # shape: (batch, output_size)
         
-        return out, (hn, cn)
+        return out, hidden
 
 class WorldModelRNN(nn.Module):
     def __init__(self, config, device):
         super(WorldModelRNN, self).__init__()
-        num_layers = 8
+        self.num_layers = 8
         self.config = config
+        self.hidden_size = 256
 
         self.rnn = Cell(
             input_size=14, 
-            hidden_size=256, 
+            hidden_size=self.hidden_size, 
             output_size=9, 
-            num_layers=num_layers,
-            dropout_rate=0.2
+            num_layers=self.num_layers,
+            dropout_rate=0.1
         )
 
-        self.h0_encoder = InitializerMLP(
-            input_dim=13 * self.config.rnn_model.history,
-            hidden_dims=[15000],
-            num_layers=num_layers,
-            hidden_size=256,
-            dropout_rate=0.2
+        # self.h0_encoder = InitializerMLP(
+        #     input_dim=13 * self.config.rnn_model.history,
+        #     hidden_dims=[15000],
+        #     num_layers=num_layers,
+        #     hidden_size=256,
+        #     dropout_rate=0.1
+        # )
+
+        self.h0_encoder = nn.RNN(
+            14,
+            256,
+            8,
+            batch_first=True,
+            dropout=0.1,
+            device=self.config.device
         )
 
         self.dt = config.physics.refresh_rate
@@ -236,30 +246,17 @@ class WorldModelRNN(nn.Module):
         Returns:
             Weighted loss value (scalar)
         """
-        # # Define weights for different state components
-        # # Format: [position(x,y,z), velocity(u,v,w), attitude(phi,theta,psi), angular_vel(p,q,r)]
-        # weights = torch.tensor([
-        #     1.0, 1.0, 1.0,     # Position (xyz)
-        #     1.0, 1.0, 1.0,        # Velocity (uvw)
-        #     10.0, 10.0, 10.0,        # Attitude (euler angles)
-        #     10.0, 10.0, 10.0         # Angular velocity
-        # ], device=pred.device)
-        
-        # # Ensure weights has the right shape for broadcasting
-        # weights = weights.view(1, -1)
-        
-        # # Compute element-wise Huber loss
-        # loss = F.mse_loss(pred, truth, reduction="none")
-        
-        # # Apply weights
-        # weighted_loss = loss * weights
-        
-        # # Return mean of weighted loss normalized by sum of weights
-        # return torch.sum(weighted_loss) / torch.sum(weights)
-        return F.mse_loss(pred, truth)
+        B, T, D = pred.shape
+        device = pred.device
+        dtype  = pred.dtype
+        weights = torch.linspace(T, 1, T, device=device, dtype=dtype)
+        weights = weights.view(1, T, 1)
+        per_elem = F.mse_loss(pred, truth, reduction='none')
+        weighted = per_elem * weights
+        return weighted.mean()
     
     def rollout(self, dts, states, acts, num_rollout):
-        hist = states.shape[1] - num_rollout - 1
+        hist = states.shape[1] - num_rollout
 
         if hist != self.config.rnn_model.history:
             print(f"History length didn't match. hist={hist} config_hist={self.config.rnn_model.history}")
@@ -267,9 +264,20 @@ class WorldModelRNN(nn.Module):
 
         traj = []
         # hn = self.h0_encoder(torch.cat((states[:,0,:], acts[:,0,:]), dim=-1)).unsqueeze(0)
-        inp = torch.cat((states[:,:hist,3:], acts[:,:hist,:]), dim=-1).flatten(start_dim=1)
-        h0, c0 = self.h0_encoder(inp)
-        hn = (h0, c0)
+        
+        # For MLP
+        # inp = torch.cat((states[:,:hist,3:], acts[:,:hist,:]), dim=-1).flatten(start_dim=1)
+        
+        # For RNN
+        inp = torch.cat((
+                    dts[:, 1:hist+1].unsqueeze(-1),
+                    states[:,:hist,3:],
+                    acts[:, :hist, :]
+                ), dim=-1)
+        # h0, c0 = self.h0_encoder(inp)
+
+        out, hn = self.h0_encoder(inp)
+
         pred_state = None
 
         for i in range(hist, hist + num_rollout - 1):
@@ -328,43 +336,23 @@ class WorldModel(nn.Module):
         
         self.model.apply(uniform_init)
 
-    def compute_normalization_stats(self, dataloader):
-        states_list = []
-        actions_list = []
-        forces_list = []
-
-        for states, actions, forces in dataloader:
-            states_list.append(states)
-            actions_list.append(actions)
-            forces_list.append(forces)
+    def compute_normalization_stats(self, states, actions):
+        self.states_mean = states.mean(dim=0)
+        self.states_std = states.std(dim=0) + self.epsilon
         
-        all_states = torch.cat(states_list, dim=0)
-        all_actions = torch.cat(actions_list, dim=0)
-        all_forces = torch.cat(forces_list, dim=0)
-        
-        self.states_mean = all_states.mean(dim=0)
-        self.states_std = all_states.std(dim=0) + self.epsilon
-        
-        self.actions_mean = all_actions.mean(dim=0)
-        self.actions_std = all_actions.std(dim=0) + self.epsilon
-
-        self.forces_mean = all_forces.mean(dim=0)
-        self.forces_std = all_forces.std(dim=0) + self.epsilon
+        self.actions_mean = actions.mean(dim=0)
+        self.actions_std = actions.std(dim=0) + self.epsilon
 
         self.states_mean = self.states_mean.to(device=self.device)
         self.states_std = self.states_std.to(device=self.device)
         self.actions_mean = self.actions_mean.to(device=self.device)
         self.actions_std = self.actions_std.to(device=self.device)
-        self.forces_mean = self.forces_mean.to(device=self.device)
-        self.forces_std = self.forces_std.to(device=self.device)
 
         print(f"Data statistics: ")
         print(f"States mean: {self.states_mean}")
         print(f"States std: {self.states_std}")
         print(f"Actions mean: {self.actions_mean}")
         print(f"Actions std: {self.actions_std}")
-        print(f"forces mean: {self.forces_mean}")
-        print(f"forces std: {self.forces_std}")
 
     def compute_reward(self, state, target_state, control_input):
         vel_rew = torch.norm((state[:,3:6] - target_state[3:6]).unsqueeze(0))

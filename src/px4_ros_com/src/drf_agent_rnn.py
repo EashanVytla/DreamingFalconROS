@@ -117,8 +117,8 @@ class Storage(Node):
 
         self.action = torch.tensor(act_msg.output[:4], dtype=torch.float32, device=self.device)
 
-        if self.buffer.get_len() < 101:
-            self.buffer.add(self.state, self.action, dt)
+        # if self.buffer.get_len() < 101:
+        self.buffer.add(self.state, self.action, dt)
         self.last_timestamp = current_timestamp
 
         # if time.time() - self.start_time > self.config.chirp_timeout:
@@ -232,7 +232,8 @@ class Learner():
     
     def save_wm(self):
         state = {
-            "state_dict": self.world_model.state_dict()
+            "state_dict": self.world_model.state_dict(),
+            # **norm_stats
         }
 
         os.makedirs(self.model_directory, exist_ok=True)
@@ -250,8 +251,8 @@ class Learner():
             if save_to_table:
                 batch_size = 128
             print("Validating...")
-            rollout_len = 8
-            dts, states, actions = self.buffer.sample(batch_size, self.history + rollout_len + 1)
+            rollout_len = 32
+            dts, states, actions = self.buffer.sample(batch_size, self.history + rollout_len)
             pred_traj = self.world_model.rollout(dts, states, actions, rollout_len)
 
             if self.norm_ranges.norm:
@@ -260,13 +261,13 @@ class Learner():
                 states[:, :, 9:12] = denormalize(states[:, :, 9:12], self.norm_ranges.omega_min, self.norm_ranges.omega_max)
 
             # Absolute error
-            abs_error = torch.abs(pred_traj - states[:,self.history+1:-1,:])
+            abs_error = torch.abs(pred_traj - states[:,self.history+1:,3:])
 
             # Calculate squared error for RMSE
-            squared_error = torch.square(pred_traj - states[:,self.history+1:-1,:])
+            squared_error = torch.square(pred_traj - states[:,self.history+1:,3:])
             
             # Calculate means
-            truth_mean = torch.mean(states[:,self.history+1:-1,:], dim=(0,1))
+            truth_mean = torch.mean(states[:,self.history+1:,3:], dim=(0,1))
             pred_mean = torch.mean(pred_traj, dim=(0,1))
             error_mean = torch.mean(abs_error, dim=(0,1))
         
@@ -274,17 +275,17 @@ class Learner():
             rmse = torch.sqrt(torch.mean(squared_error, dim=(0,1)))
             
             # Calculate overall RMSE for key state groups
-            position_rmse = torch.sqrt(torch.mean(squared_error[:,:,0:3]))
-            velocity_rmse = torch.sqrt(torch.mean(squared_error[:,:,3:6]))
-            attitude_rmse = torch.sqrt(torch.mean(squared_error[:,:,6:9]))
-            angular_vel_rmse = torch.sqrt(torch.mean(squared_error[:,:,9:12]))
+            # position_rmse = torch.sqrt(torch.mean(squared_error[:,:,0:3]))
+            velocity_rmse = torch.sqrt(torch.mean(squared_error[:,:,0:3]))
+            attitude_rmse = torch.sqrt(torch.mean(squared_error[:,:,3:6]))
+            angular_vel_rmse = torch.sqrt(torch.mean(squared_error[:,:,6:9]))
             overall_rmse = torch.sqrt(torch.mean(squared_error))
             
             print(f"Truth Mean: {truth_mean}")
             print(f"Prediction Mean: {pred_mean}")
             print(f"Error: {error_mean}")
             print(f"RMSE per dimension: {rmse}")
-            print(f"Position RMSE: {position_rmse:.6f}")
+            # print(f"Position RMSE: {position_rmse:.6f}")
             print(f"Velocity RMSE: {velocity_rmse:.6f}")
             print(f"Attitude RMSE: {attitude_rmse:.6f}")
             print(f"Angular Velocity RMSE: {angular_vel_rmse:.6f}")
@@ -300,7 +301,7 @@ class Learner():
                     "pred_mean": pred_mean.cpu().tolist(),
                     "error_mean": error_mean.cpu().tolist(),
                     "rmse_per_dim": rmse.cpu().tolist(),
-                    "position_rmse": position_rmse.item(),
+                    # "position_rmse": position_rmse.item(),
                     "velocity_rmse": velocity_rmse.item(),
                     "attitude_rmse": attitude_rmse.item(),
                     "angular_vel_rmse": angular_vel_rmse.item(),
@@ -435,8 +436,8 @@ class Learner():
         self.wm_optimizer.zero_grad()
 
     def wm_train_step(self):
-        num_rollout = 8
-        dts, states, actions = self.buffer.sample(self.config.training.batch_size, self.history+num_rollout+1)
+        num_rollout = 32
+        dts, states, actions = self.buffer.sample(self.config.training.batch_size, self.history+num_rollout)
         
         pred_traj = self.world_model.rollout(dts, states, actions, num_rollout)
 
@@ -447,7 +448,7 @@ class Learner():
 
         loss = self.world_model.loss(
             pred_traj,
-            states[:,self.history+2:,3:]
+            states[:,self.history+1:,3:]
         )
 
         loss.backward()
@@ -474,8 +475,13 @@ def wm_train_process_fn(buffer, actor, config_file, stop_event):
     try:
         num_updates = 0
         learner = Learner(buffer, actor, config_file)
+        first = True
         while not stop_event.is_set():
             if learner.buffer.get_len() > learner.config.replay_buffer.start_learning:
+                # if first:
+                #     norm_stats = buffer.compute_normalization_stats()
+                #     buffer.normalize_buffer_data()
+                #     first = False
                 learner.wm_train_step()
                 # if num_updates > learner.config.behavior_learning.start_point:
                 #     print("behavior step!")
@@ -492,6 +498,7 @@ def wm_train_process_fn(buffer, actor, config_file, stop_event):
         if learner:
             learner.validate(save_to_table=True)
             print("Saving model...")
+            # learner.save_wm(norm_stats)
             learner.save_wm()
             if 'learner' in locals():
                 learner.close_writer()

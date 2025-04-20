@@ -48,7 +48,7 @@ class OffboardControl(Node):
         self.origin = np.array([0.0, 0.0, self.target_takeoff_height], dtype=np.float32)
         self.prod_cnt = 0
 
-        self.steady_velo = 2.0
+        self.steady_velo = 6.0
 
         # Configure QoS profile for publishing and subscribing
         qos_profile = QoSProfile(
