@@ -207,19 +207,19 @@ class WorldModelRNN(nn.Module):
         self.config = config
 
         self.rnn = Cell(
-            input_size=17, 
+            input_size=14, 
             hidden_size=256, 
-            output_size=12, 
+            output_size=9, 
             num_layers=num_layers,
-            dropout_rate=0.3
+            dropout_rate=0.2
         )
 
         self.h0_encoder = InitializerMLP(
-            input_dim=16 * self.config.rnn_model.history,
+            input_dim=13 * self.config.rnn_model.history,
             hidden_dims=[15000],
             num_layers=num_layers,
             hidden_size=256,
-            dropout_rate=0.3
+            dropout_rate=0.2
         )
 
         self.dt = config.physics.refresh_rate
@@ -267,7 +267,7 @@ class WorldModelRNN(nn.Module):
 
         traj = []
         # hn = self.h0_encoder(torch.cat((states[:,0,:], acts[:,0,:]), dim=-1)).unsqueeze(0)
-        inp = torch.cat((states[:,:hist,:], acts[:,:hist,:]), dim=-1).flatten(start_dim=1)
+        inp = torch.cat((states[:,:hist,3:], acts[:,:hist,:]), dim=-1).flatten(start_dim=1)
         h0, c0 = self.h0_encoder(inp)
         hn = (h0, c0)
         pred_state = None
@@ -275,7 +275,7 @@ class WorldModelRNN(nn.Module):
         for i in range(hist, hist + num_rollout - 1):
             inp = torch.cat((
                     dts[:, i+1:i+2].unsqueeze(-1),
-                    pred_state.unsqueeze(1) if pred_state != None else states[:,hist:hist+1,:],
+                    pred_state.unsqueeze(1) if pred_state != None else states[:,hist:hist+1,3:],
                     acts[:, i:i+1, :]
                 ), dim=-1)
             out, hn = self.rnn(inp, hn)
