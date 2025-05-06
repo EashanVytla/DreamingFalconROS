@@ -20,8 +20,8 @@ normalization:
   norm: False
   pose_min: -25
   pose_max: 25
-  velo_min: -12
-  velo_max: 12
+  velo_min: -10
+  velo_max: 10
   euler_min: -1.0
   euler_max: 1.0
   omega_min: -1.0
@@ -84,7 +84,7 @@ behavior_learning:
 training: 
   num_epochs: 64
   batch_size: 64
-  lr: 0.00001
+  lr: 0.0001
   min_lr: 0.0075
   init_seq_len: 2
   max_seq_len: 2
@@ -92,7 +92,7 @@ training:
   seq_sch_thresh: 0.01
   loss_scaler: 1280
   beta: 10
-  weight_decay: 0.0001
+  weight_decay: 0.00001
   cos_lr: False
 
 behavior:  

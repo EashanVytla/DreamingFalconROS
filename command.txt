@@ -13,6 +13,13 @@ HEADLESS=1 PX4_GZ_SIM_RENDER_ENGINE=ogre make px4_sitl gz_x500
 
 PX4_GZ_WORLD=windy
 
+Adding Actuator Messages topics:
+    vim ./src/modules/uxrce_dds_client/dds_topics.yaml
+
+    add these lines under publications:
+          - topic: /fmu/out/actuator_outputs
+            type: px4_msgs::msg::ActuatorOutputs
+
 starting agent:
 MicroXRCEAgent udp4 -p 8888
 
