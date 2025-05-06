@@ -16,6 +16,9 @@ PX4_GZ_WORLD=windy
 starting agent:
 MicroXRCEAgent udp4 -p 8888
 
+Tensorboard:
+tensorboard --logdir=runs
+
 Spinning up the roslaunch:
 ros2 launch px4_ros_com chirp.launch.py
 
