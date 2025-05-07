@@ -28,8 +28,7 @@ class ReplayBuffer:
 
     def add(self, state: torch.Tensor, action: torch.Tensor, dt: float):
         with self.lock:
-            # if self.norm_ranges.norm:
-            if True:
+            if self.norm_ranges.norm:
                 norm_x_t = torch.zeros_like(state, device=self.device)
                 norm_x_t[0:3] = normalize(state[0:3], self.norm_ranges.pose_min, self.norm_ranges.pose_max)
                 norm_x_t[3:6] = normalize(state[3:6], self.norm_ranges.velo_min, self.norm_ranges.velo_max)     # Velocity: +- 20
@@ -38,7 +37,7 @@ class ReplayBuffer:
             
             norm_act = normalize(action, self.norm_ranges.act_min, self.norm_ranges.act_max)
 
-            self.states[self.ptr.value, :] = norm_x_t #if self.norm_ranges.norm else state
+            self.states[self.ptr.value, :] = norm_x_t if self.norm_ranges.norm else state
             self.actions[self.ptr.value, :] = norm_act
             self.dt[self.ptr.value] = dt
 

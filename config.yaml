@@ -39,7 +39,7 @@ normalization:
 
 replay_buffer:
   capacity: 10000
-  start_learning: 100
+  start_learning: 1000
 
 force_model:
   hidden_layers: 2

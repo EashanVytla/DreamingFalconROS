@@ -348,7 +348,7 @@ def main(args=None) -> None:
 
     offboard_control = OffboardControl()
 
-    timeout = 3.2
+    timeout = 10.0
 
     while rclpy.ok():
         if offboard_control.current_state != DroneState.FORWARD_FLIGHT:
