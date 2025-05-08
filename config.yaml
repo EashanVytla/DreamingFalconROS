@@ -43,9 +43,9 @@ replay_buffer:
 
 force_model:
   hidden_layers: 2
-  hidden_size: 512
+  hidden_size: 256
   output_dim: 6
-  input_dim: 13
+  input_dim: 10
   state_dim: 12
   action_dim: 4
   activation: relu

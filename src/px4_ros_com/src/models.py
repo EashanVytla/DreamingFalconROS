@@ -368,13 +368,16 @@ class WorldModel(nn.Module):
         
         return reward
 
-    def rollout(self, dts, x_t, act_inps):
+    def rollout(self, dts, x_t, x_tm1, act_inps):
         x_roll = [x_t]
         forces_roll = []
         prev_x = None
         seq_len = act_inps.shape[1]
+
+        prev_forces = self.invert_forces_and_moments(x_tm1, x_t, dts[:,0].unsqueeze(-1))
+
         for i in range(1, seq_len):
-            pred = self.predict(dts[:, i].unsqueeze(-1), x_roll[i-1], act_inps[:, i-1, :])
+            pred, forces = self.predict(dts[:, i].unsqueeze(-1), x_roll[i-1], act_inps[:, i-1, :], prev_forces=prev_forces)
 
             # if self.norm_ranges.norm:
             #     pred_norm = torch.zeros((pred.shape[0], pred.shape[1], 6), dtype=torch.float32, device=self.device)
@@ -390,10 +393,49 @@ class WorldModel(nn.Module):
                 if delta > 1000:
                     print(f"Warning: Large state change detected at step {i}, delta: {delta}")
             prev_x = pred
+            prev_forces = forces
             x_roll.append(pred)
 
         stacked = torch.stack(x_roll, dim=1)
         return stacked
+    
+    def invert_forces_and_moments(self, x_tm1, x_t, dt):
+        """
+        Given state at time t and t+1, recover applied forces and moments.
+        
+        x_t, x_tp1: tensors of shape [batch, 12] in the same ordering as your forward model.
+        dt:       scalar timestep (float)
+        mass:     scalar mass m
+        I:        inertia tensor of shape [3,3]
+        
+        Returns:
+        forces:  tensor [batch, 3]
+        moments: tensor [batch, 3]
+        """
+        # split out velocities and angular rates
+        V_t      = x_tm1[:, 3:6]      # [U, V, W] at t
+        V_tp1    = x_t[:, 3:6]
+        omega_t  = x_tm1[:, 9:12]     # [p, q, r] at t
+        omega_tp1= x_t[:, 9:12]
+        
+        # 1) linear acceleration estimate
+        dv_dt = (V_tp1 - V_t) / dt  # [batch,3]
+        # cross product omega x V
+        coriolis_lin = torch.cross(omega_t, V_t, dim=1)
+        # recover force
+        F = self._mass * (dv_dt + coriolis_lin)  # [batch,3]
+        
+        # 2) angular acceleration estimate
+        domega_dt = (omega_tp1 - omega_t) / dt  # [batch,3]
+        # I * domega_dt
+        I_omega_dot = torch.matmul(domega_dt.unsqueeze(-2), self.I).squeeze(-2)
+        # coriolis_rot = omega x (I omega)
+        I_omega = torch.matmul(omega_t.unsqueeze(-2), self.I).squeeze(-2)
+        coriolis_rot = torch.cross(omega_t, I_omega, dim=1)
+        # recover moment
+        M = I_omega_dot + coriolis_rot       # [batch,3]
+        
+        return torch.cat((F, M), dim=1)
 
     def _compute_derivatives(self, x, forces):
         """
@@ -444,13 +486,14 @@ class WorldModel(nn.Module):
     def six_dof(self, x_t, dt, forces):
         return self.solver.step(x_t, self._compute_derivatives, dt, forces)
 
-    def predict(self, dt, x_t, actuator_input):
+    def predict(self, dt, x_t, actuator_input, prev_forces: torch.Tensor):
         '''
         input vector: Velocity: U, v, w (0:3)
                         Euler Rotation Angles: phi, theta, psi (3:6)
                         Body Rotation Rates: p, q, r (6:9)
         '''
-        inp = torch.cat((actuator_input, x_t[:, 3:12]), dim=1)
+        # inp = torch.cat((actuator_input, x_t[:, 3:12]), dim=1)
+        inp = torch.cat((actuator_input, prev_forces), dim=1)
         forces_norm = torch.tanh(self.model(inp))
 
         if self.norm_config.norm:
@@ -460,15 +503,17 @@ class WorldModel(nn.Module):
             x_t_dn[:, 6:9] = utils.denormalize(x_t[:, 6:9], self.norm_config.euler_min, self.norm_config.euler_max)
             x_t_dn[:, 9:12] = utils.denormalize(x_t[:, 9:12], self.norm_config.omega_min, self.norm_config.omega_max)
 
-        forces = torch.zeros_like(forces_norm)
-        forces[:, 0:2] = utils.denormalize(forces_norm[:, 0:2], self.norm_config.fxy_min, self.norm_config.fxy_max)
-        forces[:, 2] = utils.denormalize(forces_norm[:, 2], self.norm_config.fz_min, self.norm_config.fz_max)
-        forces[:, 3:5] = utils.denormalize(forces_norm[:, 3:5], self.norm_config.mxy_min, self.norm_config.mxy_max)
-        forces[:, 5] = utils.denormalize(forces_norm[:, 5], self.norm_config.mz_min, self.norm_config.mz_max)
+        # forces = torch.zeros_like(forces_norm)
+        # forces[:, 0:2] = utils.denormalize(forces_norm[:, 0:2], self.norm_config.fxy_min, self.norm_config.fxy_max)
+        # forces[:, 2] = utils.denormalize(forces_norm[:, 2], self.norm_config.fz_min, self.norm_config.fz_max)
+        # forces[:, 3:5] = utils.denormalize(forces_norm[:, 3:5], self.norm_config.mxy_min, self.norm_config.mxy_max)
+        # forces[:, 5] = utils.denormalize(forces_norm[:, 5], self.norm_config.mz_min, self.norm_config.mz_max)
+
+        forces_norm = forces_norm + prev_forces
 
         # print(torch.max(forces, dim=0))
 
-        return self.six_dof(x_t_dn if self.norm_config.norm else x_t, dt, forces)
+        return self.six_dof(x_t_dn if self.norm_config.norm else x_t, dt, forces_norm), forces_norm
 
     def loss(self, pred, truth):
         """

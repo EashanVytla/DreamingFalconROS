@@ -248,7 +248,7 @@ class Learner():
                 batch_size = 128
             print("Validating...")
             dts, states, actions = self.buffer.sample(batch_size, 32)
-            pred_traj = self.world_model.rollout(dts, states[:,0,:], actions)
+            pred_traj = self.world_model.rollout(dts=dts[:,1:], x_tm1=states[:,0,:], x_t=states[:,1,:], act_inps=actions[:,1:,:])
 
             if self.norm_ranges.norm:
                 states[:, :, 3:6] = denormalize(states[:, :, 3:6], self.norm_ranges.velo_min, self.norm_ranges.velo_max)
@@ -256,13 +256,13 @@ class Learner():
                 states[:, :, 9:12] = denormalize(states[:, :, 9:12], self.norm_ranges.omega_min, self.norm_ranges.omega_max)
 
             # Absolute error
-            abs_error = torch.abs(pred_traj[:, 1:, :] - states[:, 1:, :])
+            abs_error = torch.abs(pred_traj[:, 1:, :] - states[:, 2:, :])
 
             # Calculate squared error for RMSE
-            squared_error = torch.square(pred_traj[:, 1:, :] - states[:, 1:, :])
+            squared_error = torch.square(pred_traj[:, 1:, :] - states[:, 2:, :])
             
             # Calculate means
-            truth_mean = torch.mean(states[:, 1:, :], dim=(0,1))
+            truth_mean = torch.mean(states[:, 2:, :], dim=(0,1))
             pred_mean = torch.mean(pred_traj[:, 1:, :], dim=(0,1))
             error_mean = torch.mean(abs_error, dim=(0,1))
             
@@ -432,7 +432,7 @@ class Learner():
 
     def wm_train_step(self):
         dts, states, actions = self.buffer.sample(self.config.training.batch_size, 8)
-        pred_traj = self.world_model.rollout(dts, states[:,0,:], actions)
+        pred_traj = self.world_model.rollout(dts=dts[:,1:], x_t=states[:,1,:], x_tm1=states[:,0,:], act_inps=actions[:,1:,:])
 
         # loss = self.model.loss(
         #     torch.concat((pred_traj[:,1:,3:6], pred_traj[:,1:,9:12]), dim=-1), 
@@ -441,7 +441,7 @@ class Learner():
 
         loss = self.world_model.loss(
             pred_traj[:,1:,:],
-            states[:,1:,:]
+            states[:,2:,:]
         )
 
         loss.backward()

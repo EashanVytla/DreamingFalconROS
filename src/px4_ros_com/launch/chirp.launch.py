@@ -32,7 +32,7 @@ def generate_launch_description():
 
     training_node = Node(
         package='px4_ros_com',
-        executable='drf_agent_rnn.py',
+        executable='drf_agent.py',
         output='screen',
         emulate_tty=True,
         parameters=[{'config_file': config_file}]
