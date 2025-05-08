@@ -57,5 +57,7 @@ qtcreator-*
 # Emacs
 .#*
 
+experiment_results.json
+
 # Catkin custom files
 CATKIN_IGNORE

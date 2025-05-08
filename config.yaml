@@ -1,5 +1,6 @@
-device: cpu
-timeout: 1200
+device: cuda
+timeout: 2400
+chirp_timeout: 2400 #1200
 
 physics: 
   refresh_rate: 0.05 # This is in ms 10hz
@@ -17,6 +18,8 @@ physics:
 
 normalization:
   norm: False
+  pose_min: -25
+  pose_max: 25
   velo_min: -10
   velo_max: 10
   euler_min: -1.0
@@ -25,12 +28,12 @@ normalization:
   omega_max: 1.0
   act_min: 150
   act_max: 1000
-  fxy_min: -10
-  fxy_max: 10
-  fz_min: -20 #z = 15 xy = 8
-  fz_max: 20
-  mxy_min: -1.0
-  mxy_max: 1.0
+  fxy_min: -35
+  fxy_max: 35
+  fz_min: -50 #z = 15 xy = 8
+  fz_max: 50
+  mxy_min: -3.4
+  mxy_max: 3.4
   mz_min: -0.36
   mz_max: 0.36
 
@@ -40,39 +43,56 @@ replay_buffer:
 
 force_model:
   hidden_layers: 2
-  hidden_size: 256
+  hidden_size: 512
   output_dim: 6
   input_dim: 13
   state_dim: 12
   action_dim: 4
   activation: relu
+  dropout_rate: 0.1
+
+rnn_model:
+  history: 10
 
 critic_model:
-  hidden_layers: 2
+  hidden_layers: 1
   hidden_size: 256
   output_dim: 1
   input_dim: 12
   activation: relu
+  discount_factor: 0.95
+  lambda_val: 0.95
+  hard_update: 100
 
 actor_model:
-  hidden_layers: 2
+  hidden_layers: 1
   hidden_size: 256
   output_dim: 4
   input_dim: 12
   activation: relu
+  sigma_min: -2
+  sigma_max: 2
+
+behavior_learning:
+  start_point: 150 # num of batch updates of world model to wait to start behavior steps
+  critic_lr: 0.0003
+  actor_lr: 0.0003
+  batch_size: 32
+  horizon: 32
+  nu: 0.00001
 
 training: 
   num_epochs: 64
   batch_size: 64
-  lr: 0.0003
+  lr: 0.0001
   min_lr: 0.0075
   init_seq_len: 2
   max_seq_len: 2
   seq_patience: 64
   seq_sch_thresh: 0.01
   loss_scaler: 1280
-  beta: 0.2
-  weight_decay: 0.0
+  beta: 10
+  weight_decay: 0.00001
   cos_lr: False
 
 behavior:  

@@ -132,7 +132,8 @@ install(FILES
 install(PROGRAMS
   src/examples/offboard_py/offboard_control.py
   src/chirp_test.py
-  src/drf_agent.py
+  src/forward_flight.py
+  src/drf_agent_rnn.py
   DESTINATION lib/${PROJECT_NAME}
 )
 
