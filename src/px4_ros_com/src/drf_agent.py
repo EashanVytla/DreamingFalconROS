@@ -471,9 +471,9 @@ def wm_train_process_fn(buffer, actor, config_file, stop_event):
         while not stop_event.is_set():
             if learner.buffer.get_len() > learner.config.replay_buffer.start_learning:
                 learner.wm_train_step()
-                if num_updates > learner.config.behavior_learning.start_point:
-                    print("behavior step!")
-                    learner.beh_train_step()
+                # if num_updates > learner.config.behavior_learning.start_point:
+                #     print("behavior step!")
+                #     learner.beh_train_step()
                 num_updates += 1
             else:
                 print(f"Not enough data yet: {learner.buffer.get_len()}")

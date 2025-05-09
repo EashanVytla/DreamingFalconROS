@@ -117,8 +117,8 @@ class Storage(Node):
 
         self.action = torch.tensor(act_msg.output[:4], dtype=torch.float32, device=self.device)
 
-        if self.buffer.get_len() < 101:
-            self.buffer.add(self.state, self.action, dt)
+        # if self.buffer.get_len() < 101:
+        self.buffer.add(self.state, self.action, dt)
         self.last_timestamp = current_timestamp
 
         # if time.time() - self.start_time > self.config.chirp_timeout:
@@ -447,7 +447,7 @@ class Learner():
 
         loss = self.world_model.loss(
             pred_traj,
-            states[:,self.history+2:,3:]
+            states[:,self.history+2:,:]
         )
 
         loss.backward()
