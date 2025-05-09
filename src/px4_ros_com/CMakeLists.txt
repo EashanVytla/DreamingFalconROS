@@ -134,6 +134,7 @@ install(PROGRAMS
   src/chirp_test.py
   src/forward_flight.py
   src/drf_agent_rnn.py
+  src/drf_agent.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

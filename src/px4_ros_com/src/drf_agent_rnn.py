@@ -448,7 +448,7 @@ class Learner():
 
         loss = self.world_model.loss(
             pred_traj,
-            states[:,self.history+1:,3:]
+            states[:,self.history+2:,:]
         )
 
         loss.backward()
