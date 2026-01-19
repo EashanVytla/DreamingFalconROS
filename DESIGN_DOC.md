@@ -348,9 +348,8 @@ The RNN showed lower position/velocity error, while the physics-informed model p
 
 When evaluated on trajectories outside the training distribution, both models failed to generalize:
 
-![OOD RNN](media/OODRNN.png){width=50%}
 <img src="media/OODRNN.png" width="50%">
-![OOD PIN](media/OODPI.png){width=50%}
+<img src="media/OODPI.png" width="50%">
 
 **Key observation:** Both models fit the training data well but diverged rapidly on the test set. The physics-informed model's predictions became unstable within the first ~1 second of the rollout, preventing policy learning from converging.
 
